@@ -2735,6 +2735,23 @@
 			#interrupt-cells = <2>;
 		};
 	};
+
+	av1d: av1d@fdc70000 {
+		compatible = "rockchip,rk3588-av1-vpu";
+		reg = <0x0 0xfdc70000 0x0 0x800>,  <0x0 0xfdc80000 0x0 0x400>,
+		      <0x0 0xfdc90000 0x0 0x400>;
+		reg-names = "vcd", "cache", "afbc";
+		interrupts = <GIC_SPI 108 IRQ_TYPE_LEVEL_HIGH 0>, <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "vdpu", "irq_cache", "irq_afbc";
+		clocks = <&cru ACLK_AV1>, <&cru PCLK_AV1>, <&cru ACLK_VDPU_ROOT>, <&cru HCLK_VDPU_ROOT>;
+		clock-names = "aclk", "hclk", "aclk_vdpu_root", "hclk_vdpu_root";
+		assigned-clocks = <&cru ACLK_AV1>, <&cru PCLK_AV1>;
+		assigned-clock-rates = <400000000>, <400000000>;
+		resets = <&cru SRST_A_AV1>, <&cru SRST_P_AV1>, <&cru SRST_A_AV1_BIU>, <&cru SRST_P_AV1_BIU>;
+		power-domains = <&power RK3588_PD_AV1>;
+		status = "okay";
+	};
 };
 
 #include "rk3588s-pinctrl.dtsi"
