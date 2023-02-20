@@ -101,6 +101,7 @@ modules.order
 !.gitignore
 !.mailmap
 !.rustfmt.toml
+!.gitlab-ci.yml
 
 #
 # Generated include files
