@@ -140,6 +140,18 @@
 					regulator-suspend-microvolt = <2000000>;
 				};
 			};
+			
+			vcc_3v3_s3: dcdc-reg8 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vcc_3v3_s3";
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
+			};
 
 			vcc_3v3_s0: pldo-reg4 {
 				regulator-always-on;
