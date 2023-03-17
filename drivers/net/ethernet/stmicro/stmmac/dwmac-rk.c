@@ -1479,49 +1479,50 @@ static int rk_gmac_clk_init(struct plat_stmmacenet_data *plat)
 
 	bsp_priv->clk_enabled = false;
 
-	bsp_priv->mac_clk_rx = devm_clk_get(dev, "mac_clk_rx");
+	bsp_priv->mac_clk_rx = devm_clk_get_optional(dev, "mac_clk_rx");
 	if (IS_ERR(bsp_priv->mac_clk_rx))
-		dev_err(dev, "cannot get clock %s\n",
-			"mac_clk_rx");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->mac_clk_rx),
+				"cannot get clock %s\n", "mac_clk_rx");
 
-	bsp_priv->mac_clk_tx = devm_clk_get(dev, "mac_clk_tx");
+	bsp_priv->mac_clk_tx = devm_clk_get_optional(dev, "mac_clk_tx");
 	if (IS_ERR(bsp_priv->mac_clk_tx))
-		dev_err(dev, "cannot get clock %s\n",
-			"mac_clk_tx");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->mac_clk_tx),
+				"cannot get clock %s\n", "mac_clk_tx");
 
-	bsp_priv->aclk_mac = devm_clk_get(dev, "aclk_mac");
+	bsp_priv->aclk_mac = devm_clk_get_optional(dev, "aclk_mac");
 	if (IS_ERR(bsp_priv->aclk_mac))
-		dev_err(dev, "cannot get clock %s\n",
-			"aclk_mac");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->aclk_mac),
+				"cannot get clock %s\n", "aclk_mac");
 
-	bsp_priv->pclk_mac = devm_clk_get(dev, "pclk_mac");
+	bsp_priv->pclk_mac = devm_clk_get_optional(dev, "pclk_mac");
 	if (IS_ERR(bsp_priv->pclk_mac))
-		dev_err(dev, "cannot get clock %s\n",
-			"pclk_mac");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->pclk_mac),
+				"cannot get clock %s\n", "pclk_mac");
 
-	bsp_priv->clk_mac = devm_clk_get(dev, "stmmaceth");
+	bsp_priv->clk_mac = devm_clk_get_optional(dev, "stmmaceth");
 	if (IS_ERR(bsp_priv->clk_mac))
-		dev_err(dev, "cannot get clock %s\n",
-			"stmmaceth");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->clk_mac),
+				"cannot get clock %s\n", "stmmaceth");
 
 	if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
-		bsp_priv->clk_mac_ref = devm_clk_get(dev, "clk_mac_ref");
+		bsp_priv->clk_mac_ref = devm_clk_get_optional(dev, "clk_mac_ref");
 		if (IS_ERR(bsp_priv->clk_mac_ref))
-			dev_err(dev, "cannot get clock %s\n",
-				"clk_mac_ref");
+			return dev_err_probe(dev, PTR_ERR(bsp_priv->clk_mac_ref),
+					"cannot get clock %s\n", "clk_mac_ref");
 
 		if (!bsp_priv->clock_input) {
 			bsp_priv->clk_mac_refout =
-				devm_clk_get(dev, "clk_mac_refout");
+				devm_clk_get_optional(dev, "clk_mac_refout");
 			if (IS_ERR(bsp_priv->clk_mac_refout))
-				dev_err(dev, "cannot get clock %s\n",
-					"clk_mac_refout");
+				return dev_err_probe(dev, PTR_ERR(bsp_priv->clk_mac_refout),
+						"cannot get clock %s\n", "clk_mac_refout");
 		}
 	}
 
-	bsp_priv->clk_mac_speed = devm_clk_get(dev, "clk_mac_speed");
+	bsp_priv->clk_mac_speed = devm_clk_get_optional(dev, "clk_mac_speed");
 	if (IS_ERR(bsp_priv->clk_mac_speed))
-		dev_err(dev, "cannot get clock %s\n", "clk_mac_speed");
+		return dev_err_probe(dev, PTR_ERR(bsp_priv->clk_mac_speed),
+				"cannot get clock %s\n", "clk_mac_speed");
 
 	if (bsp_priv->clock_input) {
 		dev_info(dev, "clock input from PHY\n");
