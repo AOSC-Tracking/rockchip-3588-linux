@@ -440,6 +440,7 @@
 			cache-size = <131072>;
 			cache-line-size = <64>;
 			cache-sets = <512>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -448,6 +449,7 @@
 			cache-size = <131072>;
 			cache-line-size = <64>;
 			cache-sets = <512>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -456,6 +458,7 @@
 			cache-size = <131072>;
 			cache-line-size = <64>;
 			cache-sets = <512>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -464,6 +467,7 @@
 			cache-size = <131072>;
 			cache-line-size = <64>;
 			cache-sets = <512>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -472,6 +476,7 @@
 			cache-size = <524288>;
 			cache-line-size = <64>;
 			cache-sets = <1024>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -480,6 +485,7 @@
 			cache-size = <524288>;
 			cache-line-size = <64>;
 			cache-sets = <1024>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -488,6 +494,7 @@
 			cache-size = <524288>;
 			cache-line-size = <64>;
 			cache-sets = <1024>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -496,6 +503,7 @@
 			cache-size = <524288>;
 			cache-line-size = <64>;
 			cache-sets = <1024>;
+			cache-level = <2>;
 			next-level-cache = <&l3_cache>;
 		};
 
@@ -504,6 +512,7 @@
 			cache-size = <3145728>;
 			cache-line-size = <64>;
 			cache-sets = <4096>;
+			cache-level = <3>;
 		};
 	};
 
