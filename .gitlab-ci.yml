@@ -37,6 +37,8 @@ stages:
                      cpio
                      libelf-dev
                      libssl-dev
+                     qemu-user
+                     qemu-user-binfmt
     # Setup ccache
     - export PATH="/usr/lib/ccache:$PATH"
     - ccache -s
