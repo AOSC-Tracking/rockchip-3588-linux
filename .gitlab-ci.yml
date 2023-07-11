@@ -53,7 +53,7 @@ build arm64 debian package:
   variables:
     ARCH: arm64
     CROSS_COMPILE: aarch64-linux-gnu-
-    ADDITIONAL_BUILD_CMD: KBUILD_IMAGE=arch/arm64/boot/Image
+    ADDITIONAL_BUILD_CMD: KBUILD_IMAGE=arch/arm64/boot/Image HOSTCC=aarch64-linux-gnu-gcc
 
 generate tests:
   stage: generate
