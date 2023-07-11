@@ -1,7 +1,5 @@
 default:
-  image: debian:testing
-  tags:
-    - bookworm
+  image: debian:bookworm-slim
 
 stages:
   - build
@@ -58,7 +56,6 @@ build arm64 debian package:
     ADDITIONAL_BUILD_CMD: KBUILD_IMAGE=arch/arm64/boot/Image
 
 generate tests:
-  image: debian:bookworm-slim
   stage: generate
   tags:
     - lightweight
