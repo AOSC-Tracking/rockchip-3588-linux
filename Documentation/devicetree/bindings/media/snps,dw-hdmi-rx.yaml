@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: (GPL-3.0 OR BSD-2-Clause)
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 # Device Tree bindings for Synopsys DesignWare HDMI RX Controller
 
 ---
@@ -9,6 +9,11 @@ title: Synopsys DesignWare HDMI RX Controller
 
 maintainers:
   - Shreeya Patel <shreeya.patel@collabora.com>
+
+description:
+  Synopsys DesignWare HDMI Input Controller preset on RK3588 SoCs
+  allowing devices to receive and decode high-resolution video streams
+  from external sources like media players, cameras, laptops, etc.
 
 properties:
   compatible:
@@ -49,30 +54,29 @@ properties:
 
   reset-names:
     items:
-      - const: rst_a
-      - const: rst_p
-      - const: rst_ref
-      - const: rst_biu
-
-  pinctrl-names:
-    const: default
+      - const: axi
+      - const: apb
+      - const: ref
+      - const: biu
 
   memory-region:
     maxItems: 1
 
-  hdmirx-5v-detection-gpios:
-    description: GPIO specifier for 5V detection.
+  hpd-gpios:
+    description: GPIO specifier for HPD.
     maxItems: 1
 
   rockchip,grf:
     $ref: /schemas/types.yaml#/definitions/phandle
     description:
-      The phandle of the syscon node for the GRF register.
+      The phandle of the syscon node for the general register file
+      containing HDMIRX PHY status bits.
 
-  rockchip,vo1_grf:
+  rockchip,vo1-grf:
     $ref: /schemas/types.yaml#/definitions/phandle
     description:
-      The phandle of the syscon node for the VO1 GRF register.
+      The phandle of the syscon node for the Video Output GRF register
+      to enable EDID transfer through SDAIN and SCLIN.
 
 required:
   - compatible
@@ -84,21 +88,19 @@ required:
   - power-domains
   - resets
   - pinctrl-0
-  - pinctrl-names
-  - hdmirx-5v-detection-gpios
+  - hpd-gpios
 
 additionalProperties: false
 
 examples:
   - |
     #include <dt-bindings/clock/rockchip,rk3588-cru.h>
+    #include <dt-bindings/gpio/gpio.h>
     #include <dt-bindings/interrupt-controller/arm-gic.h>
     #include <dt-bindings/interrupt-controller/irq.h>
     #include <dt-bindings/power/rk3588-power.h>
     #include <dt-bindings/reset/rockchip,rk3588-cru.h>
-    #include <dt-bindings/pinctrl/rockchip.h>
-    #include <dt-bindings/gpio/gpio.h>
-    hdmirx_ctrler: hdmirx-controller@fdee0000 {
+    hdmi_receiver: hdmi-receiver@fdee0000 {
       compatible = "rockchip,rk3588-hdmirx-ctrler", "snps,dw-hdmi-rx";
       reg = <0xfdee0000 0x6000>;
       interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH 0>,
@@ -122,9 +124,9 @@ examples:
       power-domains = <&power RK3588_PD_VO1>;
       resets = <&cru SRST_A_HDMIRX>, <&cru SRST_P_HDMIRX>,
                <&cru SRST_HDMIRX_REF>, <&cru SRST_A_HDMIRX_BIU>;
-      reset-names = "rst_a", "rst_p", "rst_ref", "rst_biu";
+      reset-names = "axi", "apb", "ref", "biu";
+      memory-region = <&hdmi_receiver_cma>;
       pinctrl-0 = <&hdmim1_rx_cec &hdmim1_rx_hpdin &hdmim1_rx_scl &hdmim1_rx_sda &hdmirx_5v_detection>;
       pinctrl-names = "default";
-      memory-region = <&hdmirx_cma>;
-      hdmirx-5v-detection-gpios = <&gpio1 RK_PC6 GPIO_ACTIVE_LOW>;
+      hpd-gpios = <&gpio1 22 GPIO_ACTIVE_LOW>;
     };
