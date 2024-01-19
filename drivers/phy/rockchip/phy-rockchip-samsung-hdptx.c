@@ -876,6 +876,8 @@ static void rk_hdptx_phy_disable(struct rk_hdptx_phy *hdptx)
 {
 	u32 val;
 
+	dev_dbg(hdptx->dev, "PHY disable\n");
+
 	reset_control_assert(hdptx->rsts[RST_APB].rstc);
 	usleep_range(20, 30);
 	reset_control_deassert(hdptx->rsts[RST_APB].rstc);
@@ -996,6 +998,8 @@ static int rk_hdptx_ropll_tmds_cmn_config(struct rk_hdptx_phy *hdptx)
 	dev_dbg(hdptx->dev, "%s rate=%llu mdiv=%u sdiv=%u sdm_en=%u k_sign=%u k=%u lc=%u\n",
 		__func__, hdptx->hdmi_cfg.tmds_char_rate, cfg->pms_mdiv, cfg->pms_sdiv + 1,
 		cfg->sdm_en, cfg->sdm_num_sign, cfg->sdm_num, cfg->sdm_deno);
+
+	dev_dbg(hdptx->dev, "%s hw=%lu\n", __func__, hdptx->hw_rate);
 
 	rk_hdptx_pre_power_up(hdptx);
 
@@ -1477,6 +1481,8 @@ static int rk_hdptx_phy_power_off(struct phy *phy)
 {
 	struct rk_hdptx_phy *hdptx = phy_get_drvdata(phy);
 
+	dev_dbg(hdptx->dev, "power_off\n");
+
 	return rk_hdptx_phy_consumer_put(hdptx, false);
 }
 
@@ -1849,12 +1855,16 @@ static int rk_hdptx_phy_clk_prepare(struct clk_hw *hw)
 {
 	struct rk_hdptx_phy *hdptx = to_rk_hdptx_phy(hw);
 
+	dev_dbg(hdptx->dev, "clk_prepare\n");
+
 	return rk_hdptx_phy_consumer_get(hdptx);
 }
 
 static void rk_hdptx_phy_clk_unprepare(struct clk_hw *hw)
 {
 	struct rk_hdptx_phy *hdptx = to_rk_hdptx_phy(hw);
+
+	dev_dbg(hdptx->dev, "clk_unprepare\n");
 
 	rk_hdptx_phy_consumer_put(hdptx, true);
 }
@@ -1864,6 +1874,8 @@ static unsigned long rk_hdptx_phy_clk_recalc_rate(struct clk_hw *hw,
 {
 	struct rk_hdptx_phy *hdptx = to_rk_hdptx_phy(hw);
 
+	dev_dbg(hdptx->dev, "clk_recalc hw=%lu\n", hdptx->hw_rate);
+
 	return hdptx->hw_rate;
 }
 
@@ -1871,6 +1883,9 @@ static long rk_hdptx_phy_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 					unsigned long *parent_rate)
 {
 	struct rk_hdptx_phy *hdptx = to_rk_hdptx_phy(hw);
+
+	dev_dbg(hdptx->dev, "clk_round_rate req=%lu, hw=%lu, tmds=%llu\n",
+		rate, hdptx->hw_rate, hdptx->hdmi_cfg.tmds_char_rate);
 
 	/*
 	 * FIXME: Temporarily allow altering TMDS char rate via CCF.
@@ -1887,6 +1902,9 @@ static long rk_hdptx_phy_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 			return ret;
 
 		hdptx->hdmi_cfg = hdmi;
+
+		dev_dbg(hdptx->dev, "clk_round_rate updated tmds=%llu\n",
+			hdptx->hdmi_cfg.tmds_char_rate);
 	}
 
 	/*
@@ -1901,6 +1919,9 @@ static int rk_hdptx_phy_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				     unsigned long parent_rate)
 {
 	struct rk_hdptx_phy *hdptx = to_rk_hdptx_phy(hw);
+
+	dev_dbg(hdptx->dev, "clk_set_rate req=%lu, hw=%lu, tmds=%llu\n",
+		rate, hdptx->hw_rate, hdptx->hdmi_cfg.tmds_char_rate);
 
 	/* Revert any unlikely TMDS char rate change since round_rate() */
 	if (hdptx->hdmi_cfg.tmds_char_rate != rate) {
@@ -1960,6 +1981,8 @@ static int rk_hdptx_phy_runtime_suspend(struct device *dev)
 {
 	struct rk_hdptx_phy *hdptx = dev_get_drvdata(dev);
 
+	dev_dbg(hdptx->dev, "suspend\n");
+
 	clk_bulk_disable_unprepare(hdptx->nr_clks, hdptx->clks);
 
 	return 0;
@@ -1969,6 +1992,8 @@ static int rk_hdptx_phy_runtime_resume(struct device *dev)
 {
 	struct rk_hdptx_phy *hdptx = dev_get_drvdata(dev);
 	int ret;
+
+	dev_dbg(hdptx->dev, "resume\n");
 
 	ret = clk_bulk_prepare_enable(hdptx->nr_clks, hdptx->clks);
 	if (ret)
