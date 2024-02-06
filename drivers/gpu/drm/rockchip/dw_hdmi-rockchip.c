@@ -216,7 +216,7 @@ struct rockchip_hdmi {
 	struct drm_property *quant_range;
 	struct drm_property *hdr_panel_metadata_property;
 	struct drm_property *next_hdr_sink_data_property;
-	struct drm_property *output_hdmi_dvi;
+//	struct drm_property *output_hdmi_dvi;
 	struct drm_property *output_type_capacity;
 	struct drm_property *user_split_mode_prop;
 
@@ -2367,12 +2367,13 @@ dw_hdmi_rockchip_destroy_properties(struct drm_connector *connector,
 		hdmi->next_hdr_sink_data_property = NULL;
 	}
 
+#if 0
 	if (hdmi->output_hdmi_dvi) {
 		drm_property_destroy(connector->dev,
 				     hdmi->output_hdmi_dvi);
 		hdmi->output_hdmi_dvi = NULL;
 	}
-
+#endif
 	if (hdmi->output_type_capacity) {
 		drm_property_destroy(connector->dev,
 				     hdmi->output_type_capacity);
@@ -2420,12 +2421,14 @@ dw_hdmi_rockchip_set_property(struct drm_connector *connector,
 		return 0;
 	} else if (property == config->hdr_output_metadata_property) {
 		return 0;
+#if 0
 	} else if (property == hdmi->output_hdmi_dvi) {
 		if (hdmi->force_output != val)
 			hdmi->color_changed++;
 		hdmi->force_output = val;
 		dw_hdmi_set_output_type(hdmi->hdmi, val);
 		return 0;
+#endif
 	} else if (property == hdmi->colordepth_capacity) {
 		return 0;
 	} else if (property == hdmi->outputmode_capacity) {
@@ -2492,9 +2495,11 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 		*val = state->hdr_output_metadata ?
 			state->hdr_output_metadata->base.id : 0;
 		return 0;
+#if 0
 	} else if (property == hdmi->output_hdmi_dvi) {
 		*val = hdmi->force_output;
 		return 0;
+#endif
 	} else if (property == hdmi->output_type_capacity) {
 		*val = dw_hdmi_get_output_type_cap(hdmi->hdmi);
 		return 0;
@@ -3214,8 +3219,20 @@ static int dw_hdmi_rockchip_probe(struct platform_device *pdev)
 	hdmi->chip_data = plat_data->phy_data;
 
 	platform_set_drvdata(pdev, hdmi);
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
+/* EH: iirc is not okay to have pm enable at bind/probe and then just
+leave it powered always.
+pm_get and pm_put should be used when we need the hw/don't need the hw
+anymore.
+So does it make sense to have PM for this hdmi transmitter ?
+Namely, it should be able to detect plugged cable, but while it's transmitting,
+it cannot be suspended.
+So , if it does not make sense to suspend it while it's not transmitting,
+then there isn't really a point of using PM-stuff ?
+
+So I removed all the PM related stuff.
+*/
+	//pm_runtime_enable(&pdev->dev);
+	//pm_runtime_get_sync(&pdev->dev);
 
 	return component_add(&pdev->dev, &dw_hdmi_rockchip_ops);
 }
@@ -3234,13 +3251,13 @@ static void dw_hdmi_rockchip_shutdown(struct platform_device *pdev)
 	} else {
 		dw_hdmi_suspend(hdmi->hdmi);
 	}
-	pm_runtime_put_sync(&pdev->dev);
+	//pm_runtime_put_sync(&pdev->dev);
 }
 
 static void dw_hdmi_rockchip_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &dw_hdmi_rockchip_ops);
-	pm_runtime_disable(&pdev->dev);
+	//pm_runtime_disable(&pdev->dev);
 }
 
 static int __maybe_unused dw_hdmi_rockchip_suspend(struct device *dev)
@@ -3252,7 +3269,7 @@ static int __maybe_unused dw_hdmi_rockchip_suspend(struct device *dev)
 	else
 		dw_hdmi_suspend(hdmi->hdmi);
 
-	pm_runtime_put_sync(dev);
+//	pm_runtime_put_sync(dev);
 
 	return 0;
 }
@@ -3298,7 +3315,7 @@ static int __maybe_unused dw_hdmi_rockchip_resume(struct device *dev)
 	} else {
 		dw_hdmi_resume(hdmi->hdmi);
 	}
-	pm_runtime_get_sync(dev);
+//	pm_runtime_get_sync(dev);
 
 	return 0;
 }

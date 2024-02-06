@@ -270,10 +270,14 @@
 #define PKT_VSI_CONTENTS6				0xbd8
 #define PKT_VSI_CONTENTS7				0xbdc
 #define PKT_AVI_CONTENTS0				0xbe0
-#define HDMI_FC_AVICONF0_ACTIVE_FMT_INFO_PRESENT	BIT(4)
-#define HDMI_FC_AVICONF0_BAR_DATA_VERT_BAR		0x04
-#define HDMI_FC_AVICONF0_BAR_DATA_HORIZ_BAR		0x08
-#define HDMI_FC_AVICONF2_IT_CONTENT_VALID		0x80
+/* EH : correct value is 0x40 ? as in dw-hdmi.h .
+this appears unused in the QP driver.
+and the other 3 values below are identical...
+*/
+#define HDMI_FC_AVICONF0_ACTIVE_FMT_INFO_PRESENT_QP	0x10
+//#define HDMI_FC_AVICONF0_BAR_DATA_VERT_BAR		0x04
+//#define HDMI_FC_AVICONF0_BAR_DATA_HORIZ_BAR		0x08
+//#define HDMI_FC_AVICONF2_IT_CONTENT_VALID		0x80
 #define PKT_AVI_CONTENTS1				0xbe4
 #define PKT_AVI_CONTENTS2				0xbe8
 #define PKT_AVI_CONTENTS3				0xbec

@@ -4,6 +4,8 @@
  * Author:
  *      Algea Cao <algea.cao@rock-chips.com>
  */
+#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
@@ -36,6 +38,7 @@
 #include <uapi/linux/videodev2.h>
 
 #include "dw-hdmi-qp.h"
+#include "dw-hdmi.h"
 
 #define DDC_CI_ADDR		0x37
 #define DDC_SEGMENT_ADDR	0x30
@@ -122,21 +125,6 @@ struct hdmi_qp_data_info {
 	bool update;
 };
 
-struct dw_hdmi_qp_i2c {
-	struct i2c_adapter	adap;
-
-	struct mutex		lock;	/* used to serialize data transfers */
-	struct completion	cmp;
-	u32			stat;
-
-	u8			slave_reg;
-	bool			is_regaddr;
-	bool			is_segment;
-
-	unsigned int		scl_high_ns;
-	unsigned int		scl_low_ns;
-};
-
 struct dw_hdmi_qp {
 	struct drm_connector connector;
 	struct drm_bridge bridge;
@@ -144,7 +132,7 @@ struct dw_hdmi_qp {
 	struct platform_device *audio;
 	struct platform_device *cec;
 	struct device *dev;
-	struct dw_hdmi_qp_i2c *i2c;
+	struct dw_hdmi_i2c *i2c;
 
 	struct hdmi_qp_data_info hdmi_data;
 	const struct dw_hdmi_plat_data *plat_data;
@@ -328,7 +316,7 @@ static void dw_hdmi_i2c_init(struct dw_hdmi_qp *hdmi)
 static int dw_hdmi_i2c_read(struct dw_hdmi_qp *hdmi,
 			    unsigned char *buf, unsigned int length)
 {
-	struct dw_hdmi_qp_i2c *i2c = hdmi->i2c;
+	struct dw_hdmi_i2c *i2c = hdmi->i2c;
 	int stat;
 
 	if (!i2c->is_regaddr) {
@@ -371,7 +359,7 @@ static int dw_hdmi_i2c_read(struct dw_hdmi_qp *hdmi,
 static int dw_hdmi_i2c_write(struct dw_hdmi_qp *hdmi,
 			     unsigned char *buf, unsigned int length)
 {
-	struct dw_hdmi_qp_i2c *i2c = hdmi->i2c;
+	struct dw_hdmi_i2c *i2c = hdmi->i2c;
 	int stat;
 
 	if (!i2c->is_regaddr) {
@@ -414,7 +402,7 @@ static int dw_hdmi_i2c_xfer(struct i2c_adapter *adap,
 			    struct i2c_msg *msgs, int num)
 {
 	struct dw_hdmi_qp *hdmi = i2c_get_adapdata(adap);
-	struct dw_hdmi_qp_i2c *i2c = hdmi->i2c;
+	struct dw_hdmi_i2c *i2c = hdmi->i2c;
 	u8 addr = msgs[0].addr;
 	int i, ret = 0;
 
@@ -499,7 +487,7 @@ static const struct i2c_algorithm dw_hdmi_algorithm = {
 static struct i2c_adapter *dw_hdmi_i2c_adapter(struct dw_hdmi_qp *hdmi)
 {
 	struct i2c_adapter *adap;
-	struct dw_hdmi_qp_i2c *i2c;
+	struct dw_hdmi_i2c *i2c;
 	int ret;
 
 	i2c = devm_kzalloc(hdmi->dev, sizeof(*i2c), GFP_KERNEL);
@@ -1621,7 +1609,7 @@ static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
 static irqreturn_t dw_hdmi_qp_main_hardirq(int irq, void *dev_id)
 {
 	struct dw_hdmi_qp *hdmi = dev_id;
-	struct dw_hdmi_qp_i2c *i2c = hdmi->i2c;
+	struct dw_hdmi_i2c *i2c = hdmi->i2c;
 	u32 stat;
 
 	stat = hdmi_readl(hdmi, MAINUNIT_1_INT_STATUS);
@@ -2182,6 +2170,11 @@ __dw_hdmi_probe(struct platform_device *pdev,
 		hdmi->ddc = dw_hdmi_i2c_adapter(hdmi);
 		if (IS_ERR(hdmi->ddc))
 			hdmi->ddc = NULL;
+/* EH: ddc-i2c-scl* are not standard bindings, need to be introduced,
+if really needed, or use i2c specific scl timings.
+for now , remove.
+*/
+#if 0
 		/*
 		 * Read high and low time from device tree. If not available use
 		 * the default timing scl clock rate is about 99.6KHz.
@@ -2192,6 +2185,7 @@ __dw_hdmi_probe(struct platform_device *pdev,
 		if (of_property_read_u32(np, "ddc-i2c-scl-low-time-ns",
 					 &hdmi->i2c->scl_low_ns))
 			hdmi->i2c->scl_low_ns = 4916;
+#endif
 	}
 
 	hdmi->bridge.driver_private = hdmi;

@@ -1169,4 +1169,18 @@ enum {
 #define HDMI_3D_TX_PHY_PTRPT_ENBL_CKO_WORD_ENB		BIT(1)
 #define HDMI_3D_TX_PHY_PTRPT_ENBL_REFCLK_ENB		BIT(0)
 
+//EH: temporary advance definition to make it compile
+ #include <linux/i2c.h>
+// EH: temporary move here to reuse struct
+struct dw_hdmi_i2c {
+	struct i2c_adapter	adap;
+
+	struct mutex		lock;	/* used to serialize data transfers */
+	struct completion	cmp;
+	u8			stat;
+
+	u8			slave_reg;
+	bool			is_regaddr;
+	bool			is_segment;
+};
 #endif /* __DW_HDMI_H__ */

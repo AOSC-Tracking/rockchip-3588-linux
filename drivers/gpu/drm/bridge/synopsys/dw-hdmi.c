@@ -6,6 +6,8 @@
  * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2010, Guennadi Liakhovetski <g.liakhovetski@gmx.de>
  */
+#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -105,18 +107,6 @@ struct hdmi_data_info {
 	bool rgb_limited_range;
 };
 
-struct dw_hdmi_i2c {
-	struct i2c_adapter	adap;
-
-	struct mutex		lock;	/* used to serialize data transfers */
-	struct completion	cmp;
-	u8			stat;
-
-	u8			slave_reg;
-	bool			is_regaddr;
-	bool			is_segment;
-};
-
 struct dw_hdmi_phy_data {
 	enum dw_hdmi_phy_type type;
 	const char *name;
@@ -163,7 +153,7 @@ struct dw_hdmi {
 	bool sink_is_hdmi;
 	bool sink_has_audio;
 	bool support_hdmi;
-	int force_output;
+//	int force_output;
 
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *default_state;
@@ -255,7 +245,7 @@ static void hdmi_mask_writeb(struct dw_hdmi *hdmi, u8 data, unsigned int reg,
 {
 	hdmi_modb(hdmi, data << shift, mask, reg);
 }
-
+#if 0
 static bool dw_hdmi_check_output_type_changed(struct dw_hdmi *hdmi)
 {
 	bool sink_hdmi;
@@ -275,6 +265,7 @@ static bool dw_hdmi_check_output_type_changed(struct dw_hdmi *hdmi)
 	return false;
 }
 
+#endif
 static void dw_hdmi_i2c_init(struct dw_hdmi *hdmi)
 {
 	hdmi_writeb(hdmi, HDMI_PHY_I2CM_INT_ADDR_DONE_POL,
@@ -2562,7 +2553,7 @@ void dw_hdmi_set_quant_range(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, HDMI_FC_GCP_CLEAR_AVMUTE, HDMI_FC_GCP);
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_set_quant_range);
-
+#if 0
 void dw_hdmi_set_output_type(struct dw_hdmi *hdmi, u64 val)
 {
 	hdmi->force_output = val;
@@ -2579,6 +2570,7 @@ void dw_hdmi_set_output_type(struct dw_hdmi *hdmi, u64 val)
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_set_output_type);
 
+#endif
 bool dw_hdmi_get_output_whether_hdmi(struct dw_hdmi *hdmi)
 {
 	return hdmi->sink_is_hdmi;
@@ -3409,7 +3401,12 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
 	u8 prod_id1;
 	u8 config0;
 	u8 config3;
-
+/* EH: dw_hdmi_probe is not called at all for rk3588. it is skipped and
+another function is called from the qp driver ; __dw_hdmi_probe.
+That function must be merged with this one.
+*/
+printk("DW_HDMI PROBE !\n");
+return 0;
 	hdmi = devm_kzalloc(dev, sizeof(*hdmi), GFP_KERNEL);
 	if (!hdmi)
 		return ERR_PTR(-ENOMEM);
