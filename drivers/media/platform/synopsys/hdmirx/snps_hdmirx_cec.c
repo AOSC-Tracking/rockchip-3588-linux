@@ -50,6 +50,9 @@ static int hdmirx_cec_log_addr(struct cec_adapter *adap, u8 logical_addr)
 	return 0;
 }
 
+/* signal_free_time is handled by the Synopsys Designware
+ * HDMIRX Controller hardware.
+ */
 static int hdmirx_cec_transmit(struct cec_adapter *adap, u8 attempts,
 			       u32 signal_free_time, struct cec_msg *msg)
 {
@@ -58,16 +61,13 @@ static int hdmirx_cec_transmit(struct cec_adapter *adap, u8 attempts,
 	int i, data_len, msg_len;
 
 	msg_len = msg->len;
-	if (msg->len > 16)
-		msg_len = 16;
-	if (msg_len <= 0)
-		return 0;
 
 	hdmirx_cec_write(cec, CEC_TX_COUNT, msg_len - 1);
 	for (i = 0; i < msg_len; i++)
 		data[i / 4] |= msg->msg[i] << (i % 4) * 8;
 
-	data_len = msg_len / 4 + 1;
+	data_len = DIV_ROUND_UP(msg_len, 4);
+
 	for (i = 0; i < data_len; i++)
 		hdmirx_cec_write(cec, CEC_TX_DATA3_0 + i * 4, data[i]);
 
@@ -99,6 +99,10 @@ static irqreturn_t hdmirx_cec_hardirq(int irq, void *data)
 		ret = IRQ_WAKE_THREAD;
 	} else if (stat & CECTX_NACK) {
 		cec->tx_status = CEC_TX_STATUS_NACK;
+		cec->tx_done = true;
+		ret = IRQ_WAKE_THREAD;
+	} else if (stat & CECTX_ARBLOST) {
+		cec->tx_status = CEC_TX_STATUS_ARB_LOST;
 		cec->tx_done = true;
 		ret = IRQ_WAKE_THREAD;
 	}
@@ -193,9 +197,6 @@ struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data)
 	unsigned int irqs;
 	int ret;
 
-	if (!data)
-		return NULL;
-
 	/*
 	 * Our device is just a convenience - we want to link to the real
 	 * hardware device here, so that userspace can see the association
@@ -209,7 +210,6 @@ struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data)
 	cec->irq = data->irq;
 	cec->ops = data->ops;
 	cec->hdmirx = data->hdmirx;
-	cec->edid = (struct edid *)data->edid;
 
 	hdmirx_cec_update_bits(cec, GLOBAL_SWENABLE, CEC_ENABLE, CEC_ENABLE);
 	hdmirx_cec_update_bits(cec, CEC_CONFIG, RX_AUTO_DRIVE_ACKNOWLEDGE,
@@ -219,9 +219,10 @@ struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data)
 	hdmirx_cec_write(cec, CEC_INT_MASK_N, 0);
 	hdmirx_cec_write(cec, CEC_INT_CLEAR, ~0);
 
-	cec->adap = cec_allocate_adapter(&hdmirx_cec_ops, cec, "rk-hdmirx",
+	cec->adap = cec_allocate_adapter(&hdmirx_cec_ops, cec, "snps-hdmirx",
 					 CEC_CAP_LOG_ADDRS | CEC_CAP_TRANSMIT |
-					 CEC_CAP_RC | CEC_CAP_PASSTHROUGH,
+					 CEC_CAP_RC | CEC_CAP_PASSTHROUGH |
+					 CEC_CAP_MONITOR_ALL,
 					 CEC_MAX_LOG_ADDRS);
 	if (IS_ERR(cec->adap)) {
 		dev_err(cec->dev, "cec adap allocate failed\n");
@@ -262,8 +263,6 @@ struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data)
 		return NULL;
 	}
 
-	cec_s_phys_addr_from_edid(cec->adap, cec->edid);
-
 	irqs = CECTX_LINE_ERR | CECTX_NACK | CECRX_EOM | CECTX_DONE;
 	hdmirx_cec_write(cec, CEC_INT_MASK_N, irqs);
 
@@ -280,9 +279,6 @@ struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data)
 
 void snps_hdmirx_cec_unregister(struct hdmirx_cec *cec)
 {
-	if (!cec)
-		return;
-
 	disable_irq(cec->irq);
 
 	cec_unregister_adapter(cec->adap);

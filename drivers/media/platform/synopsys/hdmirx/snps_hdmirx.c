@@ -13,6 +13,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/gpio/consumer.h>
+#include <linux/hdmi.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/mfd/syscon.h>
@@ -39,6 +40,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
+#include <media/v4l2-common.h>
 
 #include <sound/hdmi-codec.h>
 
@@ -102,12 +104,6 @@ enum hdmirx_reg_attr {
 	HDMIRX_ATTR_RE = 3,
 };
 
-enum hdmirx_edid_version {
-	HDMIRX_EDID_USER = 0,
-	HDMIRX_EDID_340M = 1,
-	HDMIRX_EDID_600M = 2,
-};
-
 enum {
 	HDMIRX_RST_A,
 	HDMIRX_RST_P,
@@ -129,13 +125,6 @@ struct hdmirx_buffer {
 	u32 buff_addr[VIDEO_MAX_PLANES];
 };
 
-struct hdmirx_output_fmt {
-	u32 fourcc;
-	u8 cplanes;
-	u8 mplanes;
-	u8 bpp[VIDEO_MAX_PLANES];
-};
-
 struct hdmirx_stream {
 	struct snps_hdmirx_dev *hdmirx_dev;
 	struct video_device vdev;
@@ -144,9 +133,9 @@ struct hdmirx_stream {
 	struct hdmirx_buffer *curr_buf;
 	struct hdmirx_buffer *next_buf;
 	struct v4l2_pix_format_mplane pixm;
-	const struct hdmirx_output_fmt *out_fmt;
-	struct mutex vlock;
-	spinlock_t vbq_lock;
+	const struct v4l2_format_info *out_finfo;
+	struct mutex vlock; /* to lock resources associated with video buffer and video device */
+	spinlock_t vbq_lock; /* to lock video buffer queue */
 	bool stopping;
 	wait_queue_head_t wq_stopped;
 	u32 frame_idx;
@@ -161,6 +150,7 @@ struct snps_hdmirx_dev {
 	struct v4l2_device v4l2_dev;
 	struct v4l2_ctrl_handler hdl;
 	struct v4l2_ctrl *detect_tx_5v_ctrl;
+	struct v4l2_ctrl *rgb_range;
 	struct v4l2_dv_timings timings;
 	struct gpio_desc *detect_5v_gpio;
 	struct work_struct work_wdt_config;
@@ -169,8 +159,8 @@ struct snps_hdmirx_dev {
 	struct delayed_work delayed_work_heartbeat;
 	struct cec_notifier *cec_notifier;
 	struct hdmirx_cec *cec;
-	struct mutex stream_lock;
-	struct mutex work_lock;
+	struct mutex stream_lock; /* to lock video stream capture */
+	struct mutex work_lock; /* to lock the critical section of hotplug event */
 	struct reset_control_bulk_data resets[HDMIRX_NUM_RST];
 	struct clk_bulk_data *clks;
 	struct regmap *grf;
@@ -178,7 +168,6 @@ struct snps_hdmirx_dev {
 	struct completion cr_write_done;
 	struct completion timer_base_lock;
 	struct completion avi_pkt_rcv;
-	enum hdmirx_edid_version edid_version;
 	enum hdmirx_pix_fmt pix_fmt;
 	void __iomem *regs;
 	int hdmi_irq;
@@ -195,7 +184,7 @@ struct snps_hdmirx_dev {
 	u32 color_depth;
 	u8 edid[EDID_BLOCK_SIZE * 2];
 	hdmi_codec_plugged_cb plugged_cb;
-	spinlock_t rst_lock;
+	spinlock_t rst_lock; /* to lock register access */
 };
 
 static u8 edid_init_data_340M[] = {
@@ -234,42 +223,6 @@ static u8 edid_init_data_340M[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F,
 };
 
-static u8 edid_init_data_600M[] = {
-	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-	0x49, 0x70, 0x88, 0x35, 0x01, 0x00, 0x00, 0x00,
-	0x2D, 0x1F, 0x01, 0x03, 0x80, 0x78, 0x44, 0x78,
-	0x0A, 0xCF, 0x74, 0xA3, 0x57, 0x4C, 0xB0, 0x23,
-	0x09, 0x48, 0x4C, 0x00, 0x00, 0x00, 0x01, 0x01,
-	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x08, 0xE8,
-	0x00, 0x30, 0xF2, 0x70, 0x5A, 0x80, 0xB0, 0x58,
-	0x8A, 0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00, 0x1E,
-	0x08, 0xE8, 0x00, 0x30, 0xF2, 0x70, 0x5A, 0x80,
-	0xB0, 0x58, 0x8A, 0x00, 0x20, 0xC2, 0x31, 0x00,
-	0x00, 0x1E, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x52,
-	0x4B, 0x2D, 0x55, 0x48, 0x44, 0x0A, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xFD,
-	0x00, 0x3B, 0x46, 0x1F, 0x8C, 0x3C, 0x00, 0x0A,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x39,
-
-	0x02, 0x03, 0x21, 0xD2, 0x41, 0x61, 0x23, 0x09,
-	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x66, 0x03,
-	0x0C, 0x00, 0x30, 0x00, 0x10, 0x67, 0xD8, 0x5D,
-	0xC4, 0x01, 0x78, 0xC0, 0x07, 0xE3, 0x05, 0x03,
-	0x01, 0x08, 0xE8, 0x00, 0x30, 0xF2, 0x70, 0x5A,
-	0x80, 0xB0, 0x58, 0x8A, 0x00, 0xC4, 0x8E, 0x21,
-	0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE8,
-};
-
 static const struct v4l2_dv_timings cea640x480 = V4L2_DV_BT_CEA_640X480P59_94;
 
 static const struct v4l2_dv_timings_cap hdmirx_timings_cap = {
@@ -283,30 +236,6 @@ static const struct v4l2_dv_timings_cap hdmirx_timings_cap = {
 			     /* capabilities */
 			     V4L2_DV_BT_CAP_PROGRESSIVE |
 			     V4L2_DV_BT_CAP_INTERLACED)
-};
-
-static const struct hdmirx_output_fmt g_out_fmts[] = {
-	{
-		.fourcc = V4L2_PIX_FMT_BGR24,
-		.cplanes = 1,
-		.mplanes = 1,
-		.bpp = { 24 },
-	}, {
-		.fourcc = V4L2_PIX_FMT_NV24,
-		.cplanes = 2,
-		.mplanes = 1,
-		.bpp = { 8, 16 },
-	}, {
-		.fourcc = V4L2_PIX_FMT_NV16,
-		.cplanes = 2,
-		.mplanes = 1,
-		.bpp = { 8, 16 },
-	}, {
-		.fourcc = V4L2_PIX_FMT_NV12,
-		.cplanes = 2,
-		.mplanes = 1,
-		.bpp = { 8, 16 },
-	}
 };
 
 static void hdmirx_writel(struct snps_hdmirx_dev *hdmirx_dev, int reg, u32 val)
@@ -362,7 +291,7 @@ static int hdmirx_subscribe_event(struct v4l2_fh *fh,
 	case V4L2_EVENT_CTRL:
 		return v4l2_ctrl_subscribe_event(fh, sub);
 	default:
-		return v4l2_ctrl_subscribe_event(fh, sub);
+		break;
 	}
 
 	return -EINVAL;
@@ -556,6 +485,41 @@ static bool hdmirx_check_timing_valid(struct v4l2_bt_timings *bt)
 	return true;
 }
 
+static void hdmirx_get_avi_infoframe(struct snps_hdmirx_dev *hdmirx_dev)
+{
+	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
+	union hdmi_infoframe frame = {};
+	int err, i, b, itr = 0;
+	u8 aviif[3 + 7 * 4];
+	u32 val;
+
+	aviif[itr++] = HDMI_INFOFRAME_TYPE_AVI;
+	val = hdmirx_readl(hdmirx_dev, PKTDEC_AVIIF_PH2_1);
+	aviif[itr++] = val & 0xff;
+	aviif[itr++] = (val >> 8) & 0xff;
+
+	for (i = 0; i < 7; i++) {
+		val = hdmirx_readl(hdmirx_dev, PKTDEC_AVIIF_PB3_0 + 4 * i);
+
+		for (b = 0; b < 4; b++)
+			aviif[itr++] = (val >> (8 * b)) & 0xff;
+	}
+
+	err = hdmi_infoframe_unpack(&frame, aviif, sizeof(aviif));
+	if (err) {
+		v4l2_err(v4l2_dev, "failed to unpack AVI infoframe\n");
+		return;
+	}
+
+	v4l2_ctrl_s_ctrl(hdmirx_dev->rgb_range, frame.avi.quantization_range);
+}
+
+/*
+ * When querying DV timings during preview, if the DMA's timing is stable,
+ * we retrieve the timings directly from the DMA. However, if the current
+ * resolution is negative, obtaining the timing from CTRL may require a
+ * change in the sync polarity, potentially leading to DMA errors.
+ */
 static int hdmirx_get_detected_timings(struct snps_hdmirx_dev *hdmirx_dev,
 				       struct v4l2_dv_timings *timings,
 				       bool from_dma)
@@ -585,6 +549,8 @@ static int hdmirx_get_detected_timings(struct snps_hdmirx_dev *hdmirx_dev,
 	do_div(tmp_data, color_depth);
 	pix_clk = tmp_data;
 	bt->pixelclock = pix_clk;
+
+	hdmirx_get_avi_infoframe(hdmirx_dev);
 
 	hdmirx_get_timings(hdmirx_dev, bt, from_dma);
 	if (bt->interlaced == V4L2_DV_INTERLACED) {
@@ -628,12 +594,6 @@ static int hdmirx_query_dv_timings(struct file *file, void *_fh,
 		return -ENOLCK;
 	}
 
-	/*
-	 * query dv timings is during preview, dma's timing is stable,
-	 * so we can get from DMA. If the current resolution is negative,
-	 * get timing from CTRL need to change polarity of sync,
-	 * maybe cause DMA errors.
-	 */
 	ret = hdmirx_get_detected_timings(hdmirx_dev, timings, true);
 	if (ret)
 		return ret;
@@ -686,6 +646,9 @@ static int hdmirx_write_edid(struct snps_hdmirx_dev *hdmirx_dev,
 		return 0;
 	}
 
+	cec_s_phys_addr_from_edid(hdmirx_dev->cec->adap,
+				  (const struct edid *)edid->edid);
+
 	memset(&hdmirx_dev->edid, 0, sizeof(hdmirx_dev->edid));
 	hdmirx_hpd_ctrl(hdmirx_dev, false);
 	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG11,
@@ -726,8 +689,11 @@ static int hdmirx_write_edid(struct snps_hdmirx_dev *hdmirx_dev,
 	hdmirx_dev->edid_blocks_written = edid->blocks;
 	memcpy(&hdmirx_dev->edid, edid->edid, edid->blocks * EDID_BLOCK_SIZE);
 	if (hpd_up) {
-		if (tx_5v_power_present(hdmirx_dev))
+		if (tx_5v_power_present(hdmirx_dev)) {
+			/* Add 100ms delay after updating the EDID as per HDMI specs */
+			msleep(100);
 			hdmirx_hpd_ctrl(hdmirx_dev, true);
+		}
 	}
 
 	return 0;
@@ -819,7 +785,6 @@ static int hdmirx_set_edid(struct file *file, void *fh, struct v4l2_edid *edid)
 	ret = hdmirx_write_edid(hdmirx_dev, edid, false);
 	if (ret)
 		return ret;
-	hdmirx_dev->edid_version = HDMIRX_EDID_USER;
 
 	enable_irq(hdmirx_dev->hdmi_irq);
 	enable_irq(hdmirx_dev->dma_irq);
@@ -1161,13 +1126,6 @@ static void hdmirx_format_change(struct snps_hdmirx_dev *hdmirx_dev)
 		return;
 	}
 
-	if (!v4l2_match_dv_timings(&hdmirx_dev->timings, &timings, 0, false)) {
-		/* automatically set timing rather than set by userspace */
-		hdmirx_dev->timings = timings;
-		v4l2_print_dv_timings(hdmirx_dev->v4l2_dev.name,
-				      "New format: ", &timings, false);
-	}
-
 	hdmirx_dev->got_timing = true;
 	v4l2_dbg(1, debug, v4l2_dev, "%s: queue res_chg_event\n", __func__);
 	v4l2_event_queue(&stream->vdev, &ev_src_chg);
@@ -1295,7 +1253,7 @@ static int hdmirx_enum_input(struct file *file, void *priv,
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = 0;
-	strscpy(input->name, "hdmirx", sizeof(input->name));
+	strscpy(input->name, "HDMI IN", sizeof(input->name));
 	input->capabilities = V4L2_IN_CAP_DV_TIMINGS;
 
 	return 0;
@@ -1314,92 +1272,33 @@ static int hdmirx_set_input(struct file *file, void *priv, unsigned int i)
 	return 0;
 }
 
-static int fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs)
-{
-	/* Note: cbcr plane bpp is 16 bit */
-	switch (fcc) {
-	case V4L2_PIX_FMT_NV24:
-		*xsubs = 1;
-		*ysubs = 1;
-		break;
-	case V4L2_PIX_FMT_NV16:
-		*xsubs = 2;
-		*ysubs = 1;
-		break;
-	case V4L2_PIX_FMT_NV12:
-		*xsubs = 2;
-		*ysubs = 2;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static u32 hdmirx_align_bits_per_pixel(const struct hdmirx_output_fmt *fmt,
-				       int plane_index)
-{
-	u32 bpp = 0;
-
-	if (fmt) {
-		switch (fmt->fourcc) {
-		case V4L2_PIX_FMT_NV24:
-		case V4L2_PIX_FMT_NV16:
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_BGR24:
-			bpp = fmt->bpp[plane_index];
-			break;
-		default:
-			pr_err("fourcc: %#x is not supported\n", fmt->fourcc);
-			break;
-		}
-	}
-
-	return bpp;
-}
-
-static const struct hdmirx_output_fmt *find_output_fmt(u32 pixelfmt)
-{
-	const struct hdmirx_output_fmt *fmt;
-	u32 i;
-
-	for (i = 0; i < ARRAY_SIZE(g_out_fmts); i++) {
-		fmt = &g_out_fmts[i];
-		if (fmt->fourcc == pixelfmt)
-			return fmt;
-	}
-
-	return NULL;
-}
-
 static void hdmirx_set_fmt(struct hdmirx_stream *stream,
 			   struct v4l2_pix_format_mplane *pixm, bool try)
 {
 	struct snps_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
 	struct v4l2_bt_timings *bt = &hdmirx_dev->timings.bt;
-	const struct hdmirx_output_fmt *fmt;
-	unsigned int imagesize = 0, planes;
-	u32 xsubs = 1, ysubs = 1, i;
+	const struct v4l2_format_info *finfo;
+	unsigned int imagesize = 0;
+	int i;
 
 	memset(&pixm->plane_fmt[0], 0, sizeof(struct v4l2_plane_pix_format));
-	fmt = find_output_fmt(pixm->pixelformat);
-	if (!fmt) {
-		fmt = &g_out_fmts[0];
-		v4l2_err(v4l2_dev,
+	finfo = v4l2_format_info(pixm->pixelformat);
+	if (!finfo) {
+		finfo = v4l2_format_info(V4L2_PIX_FMT_BGR24);
+		v4l2_dbg(1, debug, v4l2_dev,
 			 "%s: set_fmt:%#x not supported, use def_fmt:%x\n",
-			 __func__, pixm->pixelformat, fmt->fourcc);
+			 __func__, pixm->pixelformat, finfo->format);
 	}
 
 	if (!bt->width || !bt->height)
-		v4l2_err(v4l2_dev, "%s: invalid resolution:%#xx%#x\n",
+		v4l2_dbg(1, debug, v4l2_dev, "%s: invalid resolution:%#xx%#x\n",
 			 __func__, bt->width, bt->height);
 
-	pixm->pixelformat = fmt->fourcc;
+	pixm->pixelformat = finfo->format;
 	pixm->width = bt->width;
 	pixm->height = bt->height;
-	pixm->num_planes = fmt->mplanes;
+	pixm->num_planes = finfo->mem_planes;
 	pixm->quantization = V4L2_QUANTIZATION_DEFAULT;
 	pixm->colorspace = V4L2_COLORSPACE_SRGB;
 	pixm->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
@@ -1411,29 +1310,39 @@ static void hdmirx_set_fmt(struct hdmirx_stream *stream,
 
 	memset(pixm->reserved, 0, sizeof(pixm->reserved));
 
-	/* calculate plane size and image size */
-	fcc_xysubs(fmt->fourcc, &xsubs, &ysubs);
-	planes = fmt->cplanes ? fmt->cplanes : fmt->mplanes;
+	v4l2_fill_pixfmt_mp(pixm, finfo->format, pixm->width, pixm->height);
 
-	for (i = 0; i < planes; i++) {
+	for (i = 0; i < pixm->num_planes; i++) {
 		struct v4l2_plane_pix_format *plane_fmt;
-		int width, height, bpl, size, bpp;
+		int width, height, bpl, size, bpp = 0;
 
 		if (!i) {
 			width = pixm->width;
 			height = pixm->height;
 		} else {
-			width = pixm->width / xsubs;
-			height = pixm->height / ysubs;
+			width = pixm->width / finfo->hdiv;
+			height = pixm->height / finfo->vdiv;
 		}
 
-		bpp = hdmirx_align_bits_per_pixel(fmt, i);
-		bpl = ALIGN(width * bpp / HDMIRX_STORED_BIT_WIDTH,
-			    MEMORY_ALIGN_ROUND_UP_BYTES);
+		switch (finfo->format) {
+		case V4L2_PIX_FMT_NV24:
+		case V4L2_PIX_FMT_NV16:
+		case V4L2_PIX_FMT_NV12:
+		case V4L2_PIX_FMT_BGR24:
+			bpp = finfo->bpp[i];
+			break;
+		default:
+			v4l2_dbg(1, debug, v4l2_dev,
+				 "fourcc: %#x is not supported\n",
+				 finfo->format);
+			break;
+		}
+
+		bpl = ALIGN(width * bpp, MEMORY_ALIGN_ROUND_UP_BYTES);
 		size = bpl * height;
 		imagesize += size;
 
-		if (fmt->mplanes > i) {
+		if (finfo->mem_planes > i) {
 			/* Set bpl and size for each mplane */
 			plane_fmt = pixm->plane_fmt + i;
 			plane_fmt->bytesperline = bpl;
@@ -1445,20 +1354,17 @@ static void hdmirx_set_fmt(struct hdmirx_stream *stream,
 			 i, size, imagesize);
 	}
 
-	/* convert to non-MPLANE format.
-	 * It's important since we want to unify non-MPLANE and MPLANE.
-	 */
-	if (fmt->mplanes == 1)
+	/* Convert to non-MPLANE format as we want to unify non-MPLANE and MPLANE */
+	if (finfo->mem_planes == 1)
 		pixm->plane_fmt[0].sizeimage = imagesize;
 
 	if (!try) {
-		stream->out_fmt = fmt;
+		stream->out_finfo = finfo;
 		stream->pixm = *pixm;
-
 		v4l2_dbg(1, debug, v4l2_dev,
 			 "%s: req(%d, %d), out(%d, %d), fmt:%#x\n", __func__,
 			 pixm->width, pixm->height, stream->pixm.width,
-			 stream->pixm.height, fmt->fourcc);
+			 stream->pixm.height, finfo->format);
 	}
 }
 
@@ -1573,7 +1479,6 @@ static int hdmirx_querycap(struct file *file, void *priv,
 
 	strscpy(cap->driver, dev->driver->name, sizeof(cap->driver));
 	strscpy(cap->card, dev->driver->name, sizeof(cap->card));
-	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform: snps_hdmirx");
 
 	return 0;
 }
@@ -1588,13 +1493,13 @@ static int hdmirx_queue_setup(struct vb2_queue *queue,
 	struct snps_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
 	const struct v4l2_pix_format_mplane *pixm = NULL;
-	const struct hdmirx_output_fmt *out_fmt;
+	const struct v4l2_format_info *out_finfo;
 	u32 i, height;
 
 	pixm = &stream->pixm;
-	out_fmt = stream->out_fmt;
+	out_finfo = stream->out_finfo;
 
-	if (!num_planes || !out_fmt) {
+	if (!num_planes || !out_finfo) {
 		v4l2_err(v4l2_dev, "%s: out_fmt not set\n", __func__);
 		return -EINVAL;
 	}
@@ -1606,18 +1511,14 @@ static int hdmirx_queue_setup(struct vb2_queue *queue,
 		for (i = 0; i < *num_planes; i++)
 			if (sizes[i] < pixm->plane_fmt[i].sizeimage)
 				return -EINVAL;
+		return 0;
 	}
 
-	*num_planes = out_fmt->mplanes;
+	*num_planes = out_finfo->mem_planes;
 	height = pixm->height;
 
-	for (i = 0; i < out_fmt->mplanes; i++) {
-		const struct v4l2_plane_pix_format *plane_fmt;
-		int h = height;
-
-		plane_fmt = &pixm->plane_fmt[i];
-		sizes[i] = plane_fmt->sizeimage / height * h;
-	}
+	for (i = 0; i < out_finfo->mem_planes; i++)
+		sizes[i] = pixm->plane_fmt[i].sizeimage;
 
 	v4l2_dbg(1, debug, v4l2_dev, "%s: count %d, size %d\n",
 		 v4l2_type_names[queue->type], *num_buffers, sizes[0]);
@@ -1631,7 +1532,7 @@ static int hdmirx_queue_setup(struct vb2_queue *queue,
  */
 static void hdmirx_buf_queue(struct vb2_buffer *vb)
 {
-	const struct hdmirx_output_fmt *out_fmt;
+	const struct v4l2_format_info *out_finfo;
 	struct vb2_v4l2_buffer *vbuf;
 	struct hdmirx_buffer *hdmirx_buf;
 	struct vb2_queue *queue;
@@ -1645,22 +1546,23 @@ static void hdmirx_buf_queue(struct vb2_buffer *vb)
 	queue = vb->vb2_queue;
 	stream = vb2_get_drv_priv(queue);
 	pixm = &stream->pixm;
-	out_fmt = stream->out_fmt;
+	out_finfo = stream->out_finfo;
 
 	memset(hdmirx_buf->buff_addr, 0, sizeof(hdmirx_buf->buff_addr));
+
 	/*
 	 * If mplanes > 1, every c-plane has its own m-plane,
 	 * otherwise, multiple c-planes are in the same m-plane
 	 */
-	for (i = 0; i < out_fmt->mplanes; i++)
+	for (i = 0; i < out_finfo->mem_planes; i++)
 		hdmirx_buf->buff_addr[i] = vb2_dma_contig_plane_dma_addr(vb, i);
 
-	if (out_fmt->mplanes == 1) {
-		if (out_fmt->cplanes == 1) {
+	if (out_finfo->mem_planes == 1) {
+		if (out_finfo->comp_planes == 1) {
 			hdmirx_buf->buff_addr[HDMIRX_PLANE_CBCR] =
 				hdmirx_buf->buff_addr[HDMIRX_PLANE_Y];
 		} else {
-			for (i = 0; i < out_fmt->cplanes - 1; i++)
+			for (i = 0; i < out_finfo->comp_planes - 1; i++)
 				hdmirx_buf->buff_addr[i + 1] =
 					hdmirx_buf->buff_addr[i] +
 					pixm->plane_fmt[i].bytesperline *
@@ -1735,7 +1637,7 @@ static int hdmirx_start_streaming(struct vb2_queue *queue, unsigned int count)
 	int line_flag;
 
 	if (!hdmirx_dev->got_timing) {
-		v4l2_err(v4l2_dev, "timing is invalid\n");
+		v4l2_dbg(1, debug, v4l2_dev, "timing is invalid\n");
 		return 0;
 	}
 
@@ -1745,6 +1647,8 @@ static int hdmirx_start_streaming(struct vb2_queue *queue, unsigned int count)
 	stream->curr_buf = NULL;
 	stream->next_buf = NULL;
 	stream->irq_stat = 0;
+	queue->min_queued_buffers = 1;
+
 	WRITE_ONCE(stream->stopping, false);
 
 	spin_lock_irqsave(&stream->vbq_lock, lock_flags);
@@ -1759,11 +1663,6 @@ static int hdmirx_start_streaming(struct vb2_queue *queue, unsigned int count)
 		}
 	}
 	spin_unlock_irqrestore(&stream->vbq_lock, lock_flags);
-
-	if (!stream->curr_buf) {
-		mutex_unlock(&hdmirx_dev->stream_lock);
-		return -ENOMEM;
-	}
 
 	v4l2_dbg(2, debug, v4l2_dev,
 		 "%s: start_stream cur_buf y_addr:%#x, uv_addr:%#x\n",
@@ -1835,8 +1734,10 @@ static int hdmirx_init_vb2_queue(struct vb2_queue *q,
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->lock = &stream->vlock;
 	q->dev = hdmirx_dev->dev;
-	q->allow_cache_hints = 0;
-	q->bidirectional = 1;
+	/*
+	 * rk3588 doesn't use iommu and works only with dma buffers
+	 * that are physically contiguous in memory.
+	 */
 	q->dma_attrs = DMA_ATTR_FORCE_CONTIGUOUS;
 	return vb2_queue_init(q);
 }
@@ -1881,7 +1782,6 @@ static const struct v4l2_file_operations hdmirx_fops = {
 	.open = v4l2_fh_open,
 	.release = vb2_fop_release,
 	.unlocked_ioctl = video_ioctl2,
-	.read = vb2_fop_read,
 	.poll = vb2_fop_poll,
 	.mmap = vb2_fop_mmap,
 };
@@ -1891,11 +1791,9 @@ static int hdmirx_register_stream_vdev(struct hdmirx_stream *stream)
 	struct snps_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
 	struct video_device *vdev = &stream->vdev;
-	char *vdev_name;
 	int ret = 0;
 
-	vdev_name = "stream_hdmirx";
-	strscpy(vdev->name, vdev_name, sizeof(vdev->name));
+	strscpy(vdev->name, "stream_hdmirx", sizeof(vdev->name));
 	INIT_LIST_HEAD(&stream->buf_head);
 	spin_lock_init(&stream->vbq_lock);
 	mutex_init(&stream->vlock);
@@ -2117,11 +2015,11 @@ static irqreturn_t hdmirx_hdmi_irq_handler(int irq, void *dev_id)
 static void hdmirx_vb_done(struct hdmirx_stream *stream,
 			   struct vb2_v4l2_buffer *vb_done)
 {
-	const struct hdmirx_output_fmt *fmt = stream->out_fmt;
+	const struct v4l2_format_info *finfo = stream->out_finfo;
 	u32 i;
 
 	/* Dequeue a filled buffer */
-	for (i = 0; i < fmt->mplanes; i++) {
+	for (i = 0; i < finfo->mem_planes; i++) {
 		vb2_set_plane_payload(&vb_done->vb2_buf, i,
 				      stream->pixm.plane_fmt[i].sizeimage);
 	}
@@ -2412,10 +2310,10 @@ static int hdmirx_parse_dt(struct snps_hdmirx_dev *hdmirx_dev)
 	if (hdmirx_dev->num_clks < 1)
 		return -ENODEV;
 
-	hdmirx_dev->resets[HDMIRX_RST_A].id = "rst_a";
-	hdmirx_dev->resets[HDMIRX_RST_P].id = "rst_p";
-	hdmirx_dev->resets[HDMIRX_RST_REF].id = "rst_ref";
-	hdmirx_dev->resets[HDMIRX_RST_BIU].id = "rst_biu";
+	hdmirx_dev->resets[HDMIRX_RST_A].id = "axi";
+	hdmirx_dev->resets[HDMIRX_RST_P].id = "apb";
+	hdmirx_dev->resets[HDMIRX_RST_REF].id = "ref";
+	hdmirx_dev->resets[HDMIRX_RST_BIU].id = "biu";
 
 	ret = devm_reset_control_bulk_get_exclusive(dev, HDMIRX_NUM_RST,
 						    hdmirx_dev->resets);
@@ -2425,10 +2323,10 @@ static int hdmirx_parse_dt(struct snps_hdmirx_dev *hdmirx_dev)
 	}
 
 	hdmirx_dev->detect_5v_gpio =
-		devm_gpiod_get_optional(dev, "hdmirx-5v-detection", GPIOD_IN);
+		devm_gpiod_get_optional(dev, "hpd", GPIOD_IN);
 
 	if (IS_ERR(hdmirx_dev->detect_5v_gpio)) {
-		dev_err(dev, "failed to get hdmirx 5v detection gpio\n");
+		dev_err(dev, "failed to get hdmirx hot plug detection gpio\n");
 		return PTR_ERR(hdmirx_dev->detect_5v_gpio);
 	}
 
@@ -2440,9 +2338,9 @@ static int hdmirx_parse_dt(struct snps_hdmirx_dev *hdmirx_dev)
 	}
 
 	hdmirx_dev->vo1_grf = syscon_regmap_lookup_by_phandle(dev->of_node,
-							      "rockchip,vo1_grf");
+							      "rockchip,vo1-grf");
 	if (IS_ERR(hdmirx_dev->vo1_grf)) {
-		dev_err(dev, "failed to get rockchip,vo1_grf\n");
+		dev_err(dev, "failed to get rockchip,vo1-grf\n");
 		return PTR_ERR(hdmirx_dev->vo1_grf);
 	}
 
@@ -2498,20 +2396,24 @@ static int hdmirx_init(struct snps_hdmirx_dev *hdmirx_dev)
 	return 0;
 }
 
-static void hdmirx_edid_init_config(struct snps_hdmirx_dev *hdmirx_dev)
+static void hdmirx_load_default_edid(struct snps_hdmirx_dev *hdmirx_dev)
 {
 	int ret;
 	struct v4l2_edid def_edid;
+
+	hdmirx_hpd_ctrl(hdmirx_dev, false);
 
 	/* disable hpd and write edid */
 	def_edid.pad = 0;
 	def_edid.start_block = 0;
 	def_edid.blocks = EDID_NUM_BLOCKS_MAX;
-	if (hdmirx_dev->edid_version == HDMIRX_EDID_600M)
-		def_edid.edid = edid_init_data_600M;
-	else
+
+	if (IS_ENABLED(CONFIG_HDMIRX_LOAD_DEFAULT_EDID))
 		def_edid.edid = edid_init_data_340M;
-	ret = hdmirx_write_edid(hdmirx_dev, &def_edid, false);
+	else
+		def_edid.edid = hdmirx_dev->edid;
+
+	ret = hdmirx_write_edid(hdmirx_dev, &def_edid, true);
 	if (ret)
 		dev_err(hdmirx_dev->dev, "%s: write edid failed\n", __func__);
 }
@@ -2585,8 +2487,6 @@ static int hdmirx_enable(struct device *dev)
 	usleep_range(150, 160);
 	reset_control_bulk_deassert(HDMIRX_NUM_RST, hdmirx_dev->resets);
 	usleep_range(150, 160);
-
-	hdmirx_edid_init_config(hdmirx_dev);
 
 	return 0;
 }
@@ -2694,7 +2594,6 @@ static int hdmirx_register_cec(struct snps_hdmirx_dev *hdmirx_dev,
 	cec_data.dev = hdmirx_dev->dev;
 	cec_data.ops = &hdmirx_cec_ops;
 	cec_data.irq = irq;
-	cec_data.edid = edid_init_data_340M;
 
 	hdmirx_dev->cec = snps_hdmirx_cec_register(&cec_data);
 	if (!hdmirx_dev->cec) {
@@ -2724,7 +2623,6 @@ static int hdmirx_probe(struct platform_device *pdev)
 
 	hdmirx_dev->dev = dev;
 	dev_set_drvdata(dev, hdmirx_dev);
-	hdmirx_dev->edid_version = HDMIRX_EDID_340M;
 
 	ret = hdmirx_parse_dt(hdmirx_dev);
 	if (ret)
@@ -2766,9 +2664,18 @@ static int hdmirx_probe(struct platform_device *pdev)
 
 	hdl = &hdmirx_dev->hdl;
 	v4l2_ctrl_handler_init(hdl, 1);
+
 	hdmirx_dev->detect_tx_5v_ctrl = v4l2_ctrl_new_std(hdl, NULL,
 							  V4L2_CID_DV_RX_POWER_PRESENT,
 							  0, 1, 0, 0);
+
+	hdmirx_dev->rgb_range = v4l2_ctrl_new_std_menu(hdl, 0,
+						       V4L2_CID_DV_RX_RGB_RANGE,
+						       V4L2_DV_RGB_RANGE_FULL, 0,
+						       V4L2_DV_RGB_RANGE_AUTO);
+
+	hdmirx_dev->rgb_range->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+
 	if (hdl->error) {
 		dev_err(dev, "v4l2 ctrl handler init failed\n");
 		ret = hdl->error;
@@ -2793,6 +2700,8 @@ static int hdmirx_probe(struct platform_device *pdev)
 	ret = hdmirx_register_cec(hdmirx_dev, pdev);
 	if (ret)
 		goto err_unreg_video_dev;
+
+	hdmirx_load_default_edid(hdmirx_dev);
 
 	hdmirx_enable_irq(dev);
 
@@ -2853,4 +2762,4 @@ module_platform_driver(hdmirx_driver);
 MODULE_DESCRIPTION("Rockchip HDMI Receiver Driver");
 MODULE_AUTHOR("Dingxian Wen <shawn.wen@rock-chips.com>");
 MODULE_AUTHOR("Shreeya Patel <shreeya.patel@collabora.com>");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");

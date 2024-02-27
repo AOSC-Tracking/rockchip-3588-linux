@@ -22,7 +22,6 @@ struct hdmirx_cec_data {
 	const struct hdmirx_cec_ops *ops;
 	struct device *dev;
 	int irq;
-	u8 *edid;
 };
 
 struct hdmirx_cec {
@@ -37,7 +36,6 @@ struct hdmirx_cec {
 	bool rx_done;
 	struct cec_notifier *notify;
 	int irq;
-	struct edid *edid;
 };
 
 struct hdmirx_cec *snps_hdmirx_cec_register(struct hdmirx_cec_data *data);

@@ -16,3 +16,12 @@ config VIDEO_SYNOPSYS_HDMIRX
 
 	  To compile this driver as a module, choose M here. The module
 	  will be called synopsys_hdmirx.
+
+config HDMIRX_LOAD_DEFAULT_EDID
+	bool "Load default EDID"
+	depends on VIDEO_SYNOPSYS_HDMIRX
+	default "y"
+	help
+	  Preload default EDID (Extended Display Identification Data).
+	  EDID contains information about the capabilities of the display,
+	  such as supported resolutions, refresh rates, and audio formats.
