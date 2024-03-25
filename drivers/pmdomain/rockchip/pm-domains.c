@@ -625,28 +625,22 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 	int error;
 
 	error = of_property_read_u32(node, "reg", &id);
-	if (error) {
-		dev_err(pmu->dev,
-			"%pOFn: failed to retrieve domain id (reg): %d\n",
-			node, error);
-		return -EINVAL;
-	}
+	if (error)
+		return dev_err_probe(pmu->dev, error,
+			"%pOFn: failed to retrieve domain id (reg)\n", node);
 
-	if (id >= pmu->info->num_domains) {
-		dev_err(pmu->dev, "%pOFn: invalid domain id %d\n",
-			node, id);
-		return -EINVAL;
-	}
+	if (id >= pmu->info->num_domains)
+		return dev_err_probe(pmu->dev, -EINVAL,
+			"%pOFn: invalid domain id %d\n", node, id);
+
 	/* RK3588 has domains with two parents (RKVDEC0/RKVDEC1) */
 	if (pmu->genpd_data.domains[id])
 		return 0;
 
 	pd_info = &pmu->info->domain_info[id];
-	if (!pd_info) {
-		dev_err(pmu->dev, "%pOFn: undefined domain id %d\n",
-			node, id);
-		return -EINVAL;
-	}
+	if (!pd_info)
+		return dev_err_probe(pmu->dev, -EINVAL,
+			"%pOFn: undefined domain id %d\n", node, id);
 
 	pd = devm_kzalloc(pmu->dev, sizeof(*pd), GFP_KERNEL);
 	if (!pd)
@@ -669,13 +663,10 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 
 	for (i = 0; i < pd->num_clks; i++) {
 		pd->clks[i].clk = of_clk_get(node, i);
-		if (IS_ERR(pd->clks[i].clk)) {
-			error = PTR_ERR(pd->clks[i].clk);
-			dev_err(pmu->dev,
-				"%pOFn: failed to get clk at index %d: %d\n",
-				node, i, error);
-			return error;
-		}
+		if (IS_ERR(pd->clks[i].clk))
+			return dev_err_probe(pmu->dev, PTR_ERR(pd->clks[i].clk),
+				"%pOFn: failed to get clk at index %d\n",
+				node, i);
 	}
 
 	error = clk_bulk_prepare(pd->num_clks, pd->clks);
@@ -709,12 +700,18 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 			qos_node = of_parse_phandle(node, "pm_qos", j);
 			if (!qos_node) {
 				error = -ENODEV;
+				dev_err_probe(pmu->dev, error,
+					"%pOFn: failed to get pm_qos\n",
+					node);
 				goto err_unprepare_clocks;
 			}
 			pd->qos_regmap[j] = syscon_node_to_regmap(qos_node);
 			if (IS_ERR(pd->qos_regmap[j])) {
 				error = -ENODEV;
 				of_node_put(qos_node);
+				dev_err_probe(pmu->dev, error,
+					"%pOFn: failed to get qos syscon\n",
+					node);
 				goto err_unprepare_clocks;
 			}
 			of_node_put(qos_node);
@@ -809,33 +806,29 @@ static int rockchip_pm_add_subdomain(struct rockchip_pmu *pmu,
 
 		error = of_property_read_u32(parent, "reg", &idx);
 		if (error) {
-			dev_err(pmu->dev,
-				"%pOFn: failed to retrieve domain id (reg): %d\n",
-				parent, error);
+			dev_err_probe(pmu->dev, error,
+				"%pOFn: failed to retrieve domain id (reg)\n",
+				parent);
 			goto err_out;
 		}
 		parent_domain = pmu->genpd_data.domains[idx];
 
 		error = rockchip_pm_add_one_domain(pmu, np);
-		if (error) {
-			dev_err(pmu->dev, "failed to handle node %pOFn: %d\n",
-				np, error);
+		if (error)
 			goto err_out;
-		}
 
 		error = of_property_read_u32(np, "reg", &idx);
 		if (error) {
-			dev_err(pmu->dev,
-				"%pOFn: failed to retrieve domain id (reg): %d\n",
-				np, error);
+			dev_err_probe(pmu->dev, error,
+				"%pOFn: failed to retrieve domain id (reg)\n", np);
 			goto err_out;
 		}
 		child_domain = pmu->genpd_data.domains[idx];
 
 		error = pm_genpd_add_subdomain(parent_domain, child_domain);
 		if (error) {
-			dev_err(pmu->dev, "%s failed to add subdomain %s: %d\n",
-				parent_domain->name, child_domain->name, error);
+			dev_err_probe(pmu->dev, error, "%s failed to add subdomain %s\n",
+				parent_domain->name, child_domain->name);
 			goto err_out;
 		} else {
 			dev_dbg(pmu->dev, "%s add subdomain: %s\n",
@@ -884,16 +877,12 @@ static int rockchip_pm_domain_probe(struct platform_device *pdev)
 	pmu->genpd_data.num_domains = pmu_info->num_domains;
 
 	parent = dev->parent;
-	if (!parent) {
-		dev_err(dev, "no parent for syscon devices\n");
-		return -ENODEV;
-	}
+	if (!parent)
+		return dev_err_probe(dev, -ENODEV, "no parent for syscon devices\n");
 
 	pmu->regmap = syscon_node_to_regmap(parent->of_node);
-	if (IS_ERR(pmu->regmap)) {
-		dev_err(dev, "no regmap available\n");
-		return PTR_ERR(pmu->regmap);
-	}
+	if (IS_ERR(pmu->regmap))
+		return dev_err_probe(dev, PTR_ERR(pmu->regmap), "no regmap available\n");
 
 	/*
 	 * Configure power up and down transition delays for CORE
@@ -917,16 +906,12 @@ static int rockchip_pm_domain_probe(struct platform_device *pdev)
 	for_each_available_child_of_node(np, node) {
 		error = rockchip_pm_add_one_domain(pmu, node);
 		if (error) {
-			dev_err(dev, "failed to handle node %pOFn: %d\n",
-				node, error);
 			of_node_put(node);
 			goto err_out;
 		}
 
 		error = rockchip_pm_add_subdomain(pmu, node);
 		if (error < 0) {
-			dev_err(dev, "failed to handle subdomain node %pOFn: %d\n",
-				node, error);
 			of_node_put(node);
 			goto err_out;
 		}
@@ -939,7 +924,7 @@ static int rockchip_pm_domain_probe(struct platform_device *pdev)
 
 	error = of_genpd_add_provider_onecell(np, &pmu->genpd_data);
 	if (error) {
-		dev_err(dev, "failed to add provider: %d\n", error);
+		dev_err_probe(dev, error, "failed to add provider\n");
 		goto err_out;
 	}
 
