@@ -1354,6 +1354,7 @@ static const struct of_device_id rockchip_pm_domain_dt_match[] = {
 	},
 	{ /* sentinel */ },
 };
+MODULE_DEVICE_TABLE(of, rockchip_pm_domain_dt_match);
 
 static struct platform_driver rockchip_pm_domain_driver = {
 	.probe = rockchip_pm_domain_probe,
@@ -1368,4 +1369,8 @@ static struct platform_driver rockchip_pm_domain_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
-builtin_platform_driver(rockchip_pm_domain_driver);
+module_platform_driver(rockchip_pm_domain_driver);
+
+MODULE_DESCRIPTION("Rockchip generic power domain support");
+MODULE_AUTHOR("Rockchip");
+MODULE_LICENSE("GPL");
