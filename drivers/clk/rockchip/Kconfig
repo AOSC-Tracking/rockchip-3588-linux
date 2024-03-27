@@ -9,6 +9,12 @@ config COMMON_CLK_ROCKCHIP
 	  Say y here to enable common clock controller for Rockchip platforms.
 
 if COMMON_CLK_ROCKCHIP
+config CLK_GATE_LINK
+	tristate "Rockchip linked gate clock support"
+	default y
+	help
+	  Build the driver for linked gate clocks.
+
 config CLK_PX30
 	bool "Rockchip PX30 clock controller support"
 	depends on ARM64 || COMPILE_TEST

@@ -91,9 +91,8 @@ struct platform_driver rk_clk_gate_link_driver = {
 		.pm = &rk_clk_gate_link_pm_ops,
 	},
 };
+module_platform_driver(rk_clk_gate_link_driver);
 
-static int __init rk_clk_gate_link_drv_register(void)
-{
-	return platform_driver_register(&rk_clk_gate_link_driver);
-}
-core_initcall(rk_clk_gate_link_drv_register);
+MODULE_DESCRIPTION("Rockchip linked gate clock support");
+MODULE_AUTHOR("Sebastian Reichel <sebastian.reichel@collabora.com>");
+MODULE_LICENSE("GPL");
