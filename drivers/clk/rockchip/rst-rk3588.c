@@ -856,3 +856,8 @@ void rk3588_rst_init(struct device_node *np, void __iomem *reg_base)
 				      reg_base + RK3588_SOFTRST_CON(0),
 				      ROCKCHIP_SOFTRST_HIWORD_MASK);
 }
+EXPORT_SYMBOL_GPL(rk3588_rst_init);
+
+MODULE_DESCRIPTION("RK3588 Reset Controller");
+MODULE_AUTHOR("Sebastian Reichel <sebastian.reichel@collabora.com>");
+MODULE_LICENSE("GPL");

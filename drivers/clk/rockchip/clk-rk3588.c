@@ -2522,9 +2522,8 @@ static struct platform_driver clk_rk3588_driver = {
 		.suppress_bind_attrs = true,
 	},
 };
+module_platform_driver(clk_rk3588_driver);
 
-static int __init rockchip_clk_rk3588_drv_register(void)
-{
-	return platform_driver_register(&clk_rk3588_driver);
-}
-core_initcall(rockchip_clk_rk3588_drv_register);
+MODULE_DESCRIPTION("RK3588 Clock Controller");
+MODULE_AUTHOR("Sebastian Reichel <sebastian.reichel@collabora.com>");
+MODULE_LICENSE("GPL");
