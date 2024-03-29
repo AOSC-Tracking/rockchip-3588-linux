@@ -627,11 +627,11 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 	error = of_property_read_u32(node, "reg", &id);
 	if (error)
 		return dev_err_probe(pmu->dev, error,
-			"%pOFn: failed to retrieve domain id (reg)\n", node);
+			"%pOF: failed to retrieve domain id (reg)\n", node);
 
 	if (id >= pmu->info->num_domains)
 		return dev_err_probe(pmu->dev, -EINVAL,
-			"%pOFn: invalid domain id %d\n", node, id);
+			"%pOF: invalid domain id %d\n", node, id);
 
 	/* RK3588 has domains with two parents (RKVDEC0/RKVDEC1) */
 	if (pmu->genpd_data.domains[id])
@@ -640,7 +640,7 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 	pd_info = &pmu->info->domain_info[id];
 	if (!pd_info)
 		return dev_err_probe(pmu->dev, -EINVAL,
-			"%pOFn: undefined domain id %d\n", node, id);
+			"%pOF: undefined domain id %d\n", node, id);
 
 	pd = devm_kzalloc(pmu->dev, sizeof(*pd), GFP_KERNEL);
 	if (!pd)
@@ -656,7 +656,7 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 		if (!pd->clks)
 			return -ENOMEM;
 	} else {
-		dev_dbg(pmu->dev, "%pOFn: doesn't have clocks: %d\n",
+		dev_dbg(pmu->dev, "%pOF: doesn't have clocks: %d\n",
 			node, pd->num_clks);
 		pd->num_clks = 0;
 	}
@@ -665,7 +665,7 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 		pd->clks[i].clk = of_clk_get(node, i);
 		if (IS_ERR(pd->clks[i].clk))
 			return dev_err_probe(pmu->dev, PTR_ERR(pd->clks[i].clk),
-				"%pOFn: failed to get clk at index %d\n",
+				"%pOF: failed to get clk at index %d\n",
 				node, i);
 	}
 
@@ -701,7 +701,7 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 			if (!qos_node) {
 				error = -ENODEV;
 				dev_err_probe(pmu->dev, error,
-					"%pOFn: failed to get pm_qos\n",
+					"%pOF: failed to get pm_qos\n",
 					node);
 				goto err_unprepare_clocks;
 			}
@@ -710,7 +710,7 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 				error = -ENODEV;
 				of_node_put(qos_node);
 				dev_err_probe(pmu->dev, error,
-					"%pOFn: failed to get qos syscon\n",
+					"%pOF: failed to get qos syscon\n",
 					node);
 				goto err_unprepare_clocks;
 			}
@@ -807,7 +807,7 @@ static int rockchip_pm_add_subdomain(struct rockchip_pmu *pmu,
 		error = of_property_read_u32(parent, "reg", &idx);
 		if (error) {
 			dev_err_probe(pmu->dev, error,
-				"%pOFn: failed to retrieve domain id (reg)\n",
+				"%pOF: failed to retrieve domain id (reg)\n",
 				parent);
 			goto err_out;
 		}
@@ -820,7 +820,7 @@ static int rockchip_pm_add_subdomain(struct rockchip_pmu *pmu,
 		error = of_property_read_u32(np, "reg", &idx);
 		if (error) {
 			dev_err_probe(pmu->dev, error,
-				"%pOFn: failed to retrieve domain id (reg)\n", np);
+				"%pOF: failed to retrieve domain id (reg)\n", np);
 			goto err_out;
 		}
 		child_domain = pmu->genpd_data.domains[idx];
