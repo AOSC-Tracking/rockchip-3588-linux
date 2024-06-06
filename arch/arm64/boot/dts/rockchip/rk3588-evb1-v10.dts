@@ -121,22 +121,32 @@
 		pwms = <&pwm2 0 25000 0>;
 	};
 
-	bluetooth-rfkill {
-		compatible = "rfkill-gpio";
-		label = "rfkill-bluetooth";
-		radio-type = "bluetooth";
-		shutdown-gpios = <&gpio3 RK_PA6 GPIO_ACTIVE_LOW>;
+	ap6275p_pmu: ap6275p-pmu {
+		compatible = "ampak,ap6275p-pmu";
+		bluetooth-enable-gpios = <&gpio3 RK_PA6 GPIO_ACTIVE_HIGH>;
+		clocks = <&wlan_clk>, <&hym8563>;
+		clock-names = "ref", "rtc";
 		pinctrl-names = "default";
-		pinctrl-0 = <&bluetooth_pwren>;
+		pinctrl-0 = <&bluetooth_pwren &wifi_pwren>;
+		vbat-supply = <&vcc_3v3_s0>;
+		vddio-supply = <&vcc_1v8_s0>;
+		wlan-enable-gpios = <&gpio3 RK_PB1 GPIO_ACTIVE_HIGH>;
+
+		regulators {
+			vbluetooth: bluetooth-regulator {
+				regulator-name = "ap6275p_bluetooth";
+			};
+
+			vwlan: wlan-regulator {
+				regulator-name = "ap6275p_wlan";
+			};
+		};
 	};
 
-	wlan-rfkill {
-		compatible = "rfkill-gpio";
-		label = "rfkill-pcie-wlan";
-		radio-type = "wlan";
-		shutdown-gpios = <&gpio3 RK_PB1 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_pwren>;
+	wlan_clk: clock-37400000 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <37400000>;
 	};
 
 	pcie20_avdd0v85: pcie20-avdd0v85-regulator {
@@ -474,6 +484,12 @@
 	reset-gpios = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
 	pinctrl-0 = <&pcie2_0_rst>, <&pcie2_0_wake>, <&pcie2_0_clkreq>, <&wifi_host_wake_irq>;
 	status = "okay";
+
+	wifi@0 {
+		compatible = "pci14e4,449d";
+		reg = <0x10000 0x0 0x0 0x0 0x0>;
+		vdd-supply = <&vwlan>;
+	};
 };
 
 &pcie2x1l1 {
