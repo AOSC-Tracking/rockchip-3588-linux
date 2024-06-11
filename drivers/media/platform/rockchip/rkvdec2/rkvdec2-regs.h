@@ -271,16 +271,18 @@ struct rkvdec2_regs_common_addr {
 	u32 rcb_base[10];
 } __packed;
 
+struct rkvdec2_h26x_set {
+	u32 h26x_frame_orslice		: 1;
+	u32 h26x_rps_mode		: 1;
+	u32 h26x_stream_mode		: 1;
+	u32 h26x_stream_lastpacket	: 1;
+	u32 h264_firstslice_flag	: 1;
+	u32 reserved			: 27;
+} __packed;
+
 /* base: OFFSET_CODEC_PARAMS_REGS */
 struct rkvdec2_regs_h264_params {
-	struct rkvdec2_h26x_set {
-		u32 h26x_frame_orslice		: 1;
-		u32 h26x_rps_mode		: 1;
-		u32 h26x_stream_mode		: 1;
-		u32 h26x_stream_lastpacket	: 1;
-		u32 h264_firstslice_flag	: 1;
-		u32 reserved			: 27;
-	} reg064;
+	struct rkvdec2_h26x_set reg064;
 
 	u32 cur_top_poc;
 	u32 cur_bot_poc;
@@ -307,8 +309,74 @@ struct rkvdec2_regs_h264_params {
 	} reg112;
 } __packed;
 
+struct rkvdec2_regs_hevc_params {
+    struct rkvdec2_h26x_set reg064;
+
+    u32 cur_top_poc;
+    u32 cur_bot_poc;
+
+    u32 reg067_082_ref_poc[16];
+
+    u32 reserved_083_098[16];
+
+    struct rkvdec2_hevc_ref_valid {
+        u32      hevc_ref_valid_0    : 1;
+        u32      hevc_ref_valid_1    : 1;
+        u32      hevc_ref_valid_2    : 1;
+        u32      hevc_ref_valid_3    : 1;
+        u32      reserve0            : 4;
+        u32      hevc_ref_valid_4    : 1;
+        u32      hevc_ref_valid_5    : 1;
+        u32      hevc_ref_valid_6    : 1;
+        u32      hevc_ref_valid_7    : 1;
+        u32      reserve1            : 4;
+        u32      hevc_ref_valid_8    : 1;
+        u32      hevc_ref_valid_9    : 1;
+        u32      hevc_ref_valid_10   : 1;
+        u32      hevc_ref_valid_11   : 1;
+        u32      reserve2            : 4;
+        u32      hevc_ref_valid_12   : 1;
+        u32      hevc_ref_valid_13   : 1;
+        u32      hevc_ref_valid_14   : 1;
+        u32      reserve3            : 5;
+    } reg099;
+
+    u32  reserved_100_102[3];
+
+    struct rkvdec2_hevc_mvc0 {
+        u32      ref_pic_layer_same_with_cur : 16;
+        u32      reserve                     : 16;
+    } reg103;
+
+    struct rkvdec2_hevc_mvc1 {
+        u32      poc_lsb_not_present_flag        : 1;
+        u32      num_direct_ref_layers           : 6;
+        u32      reserve0                        : 1;
+
+        u32      num_reflayer_pics               : 6;
+        u32      default_ref_layers_active_flag  : 1;
+        u32      max_one_active_ref_layer_flag   : 1;
+
+        u32      poc_reset_info_present_flag     : 1;
+        u32      vps_poc_lsb_aligned_flag        : 1;
+        u32      mvc_poc15_valid_flag            : 1;
+        u32      reserve1                        : 13;
+    } reg104;
+
+    u32 reserved_105_111[7];
+
+    struct rkvdec2_hevc_ref_info {
+        u32      avs2_ref_error_field        : 1;
+        u32      avs2_ref_error_topfield     : 1;
+        u32      ref_error_topfield_used     : 1;
+        u32      ref_error_botfield_used     : 1;
+        u32      reserve                     : 28;
+    } reg112;
+
+} __packed;
+
 /* base: OFFSET_CODEC_ADDR_REGS */
-struct rkvdec2_regs_h264_addr {
+struct rkvdec2_regs_h26x_addr {
 	u32 reserved_160;
 	u32 pps_base;
 	u32 reserved_162;
@@ -319,7 +387,7 @@ struct rkvdec2_regs_h264_addr {
 	u32 cabactbl_base;
 } __packed;
 
-struct rkvdec2_regs_h264_highpoc {
+struct rkvdec2_regs_h26x_highpoc {
 	struct rkvdec2_ref_poc_highbit {
 		u32 ref0_poc_highbit	: 4;
 		u32 ref1_poc_highbit	: 4;
@@ -340,8 +408,16 @@ struct rkvdec2_regs_h264 {
 	struct rkvdec2_regs_common		common;
 	struct rkvdec2_regs_h264_params		h264_param;
 	struct rkvdec2_regs_common_addr		common_addr;
-	struct rkvdec2_regs_h264_addr		h264_addr;
-	struct rkvdec2_regs_h264_highpoc	h264_highpoc;
+	struct rkvdec2_regs_h26x_addr		h264_addr;
+	struct rkvdec2_regs_h26x_highpoc	h264_highpoc;
+} __packed;
+
+struct rkvdec2_regs_hevc {
+	struct rkvdec2_regs_common		common;
+	struct rkvdec2_regs_hevc_params		hevc_param;
+	struct rkvdec2_regs_common_addr		common_addr;
+	struct rkvdec2_regs_h26x_addr		hevc_addr;
+	struct rkvdec2_regs_h26x_highpoc	hevc_highpoc;
 } __packed;
 
 #endif /* __RKVDEC_REGS_H__ */

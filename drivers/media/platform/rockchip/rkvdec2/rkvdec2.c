@@ -218,6 +218,47 @@ static const struct rkvdec2_ctrl_desc rkvdec2_h264_ctrl_descs[] = {
 	},
 };
 
+static const struct rkvdec2_ctrl_desc rkvdec2_hevc_ctrl_descs[] = {
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_DECODE_PARAMS,
+	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_SPS,
+		.cfg.ops = &rkvdec2_ctrl_ops,
+	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_PPS,
+	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_SCALING_MATRIX,
+	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_DECODE_MODE,
+		.cfg.min = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		.cfg.max = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+		.cfg.def = V4L2_STATELESS_HEVC_DECODE_MODE_FRAME_BASED,
+	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_START_CODE,
+		.cfg.min = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+		.cfg.def = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+		.cfg.max = V4L2_STATELESS_HEVC_START_CODE_ANNEX_B,
+	},
+	{
+		.cfg.id = V4L2_CID_MPEG_VIDEO_HEVC_PROFILE,
+		.cfg.min = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
+		.cfg.max = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10,
+		.cfg.menu_skip_mask =
+			BIT(V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_STILL_PICTURE),
+		.cfg.def = V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN,
+	},
+	{
+		.cfg.id = V4L2_CID_MPEG_VIDEO_HEVC_LEVEL,
+		.cfg.min = V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
+		.cfg.max = V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1,
+	},
+};
+
 static const struct rkvdec2_ctrls rkvdec2_h264_ctrls = {
 	.ctrls = rkvdec2_h264_ctrl_descs,
 	.num_ctrls = ARRAY_SIZE(rkvdec2_h264_ctrl_descs),
@@ -242,6 +283,22 @@ static const struct rkvdec2_decoded_fmt_desc rkvdec2_h264_decoded_fmts[] = {
 	},
 };
 
+static const struct rkvdec2_ctrls rkvdec2_hevc_ctrls = {
+	.ctrls = rkvdec2_hevc_ctrl_descs,
+	.num_ctrls = ARRAY_SIZE(rkvdec2_hevc_ctrl_descs),
+};
+
+static const struct rkvdec2_decoded_fmt_desc rkvdec2_hevc_decoded_fmts[] = {
+	{
+		.fourcc = V4L2_PIX_FMT_NV12,
+		.image_fmt = RKVDEC2_IMG_FMT_420_8BIT,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_NV15,
+		.image_fmt = RKVDEC2_IMG_FMT_420_10BIT,
+	},
+};
+
 static const struct rkvdec2_coded_fmt_desc rkvdec2_coded_fmts[] = {
 	{
 		.fourcc = V4L2_PIX_FMT_H264_SLICE,
@@ -257,6 +314,22 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_coded_fmts[] = {
 		.ops = &rkvdec2_h264_fmt_ops,
 		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_h264_decoded_fmts),
 		.decoded_fmts = rkvdec2_h264_decoded_fmts,
+		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
+	},
+	{
+		.fourcc = V4L2_PIX_FMT_HEVC_SLICE,
+		.frmsize = {
+			.min_width = 16,
+			.max_width = 65472,
+			.step_width = 16,
+			.min_height = 16,
+			.max_height = 65472,
+			.step_height = 16,
+		},
+		.ctrls = &rkvdec2_hevc_ctrls,
+		.ops = &rkvdec2_hevc_fmt_ops,
+		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_hevc_decoded_fmts),
+		.decoded_fmts = rkvdec2_hevc_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
 	},
 };
@@ -1210,11 +1283,19 @@ static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
 	u32 status;
 
 	status = readl(rkvdec->regs + RKVDEC2_REG_STA_INT);
+	//dev_warn(rkvdec->dev, "status = %08x\n", status);
 	state = (status & STA_INT_DEC_RDY_STA) ?
 		VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
 
 	need_reset = state != VB2_BUF_STATE_DONE ||
 			      (status & STA_INT_SOFTRESET_RDY);
+
+	/*for (int i = 0x0380; i <= 0x03b4; i+=4) {
+		status = readl(rkvdec->regs + i);
+		dev_warn(rkvdec->dev, "reg[%u] = %08x\n", i/4, status);
+	}*/
+	status = readl(rkvdec->regs + 0x200);
+	//dev_warn(rkvdec->dev, "reg[%u] = %08x\n", 0x200/4, status);
 
 	/* Clear interrupt status */
 	writel(0, rkvdec->regs + RKVDEC2_REG_STA_INT);
