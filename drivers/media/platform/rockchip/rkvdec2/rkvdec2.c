@@ -826,6 +826,19 @@ static void rkvdec2_device_run(void *priv)
 	if (WARN_ON(!desc))
 		return;
 
+	/*
+	 * The hw decoder block may reset IOMMU when there is an error,
+	 * flush entire iotlb to reconfigure the IOMMU.
+	 */
+	if (rkvdec->flush_iommu) {
+		struct iommu_domain *domain;
+
+		domain = iommu_get_domain_for_dev(rkvdec->dev);
+		if (domain)
+			iommu_flush_iotlb_all(domain);
+		rkvdec->flush_iommu = false;
+	}
+
 	ret = pm_runtime_resume_and_get(rkvdec->dev);
 	if (ret < 0) {
 		rkvdec2_job_finish_no_pm(ctx, VB2_BUF_STATE_ERROR);
@@ -1082,6 +1095,9 @@ static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
 	status = readl(rkvdec->regs + RKVDEC2_REG_STA_INT);
 	state = (status & STA_INT_DEC_RDY_STA) ?
 		VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
+
+	if (state == VB2_BUF_STATE_ERROR || (status & STA_INT_SOFTRESET_RDY))
+		rkvdec->flush_iommu = true;
 
 	/* Clear interrupt status */
 	writel(0, rkvdec->regs + RKVDEC2_REG_STA_INT);

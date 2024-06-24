@@ -102,6 +102,7 @@ struct rkvdec2_dev {
 	struct mutex vdev_lock; /* serializes ioctls */
 	struct delayed_work watchdog_work;
 	struct iommu_domain *iommu_domain;
+	bool flush_iommu;
 };
 
 struct rkvdec2_ctx {
