@@ -14,6 +14,7 @@
 #include <linux/iommu.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
@@ -556,20 +557,23 @@ static void rkvdec2_free_rcb(struct rkvdec2_ctx *ctx)
 	u32 width, height;
 	int i;
 
+	struct rkvdec2_dev *rkvdec = ctx->dev;
+
 	width = ctx->decoded_fmt.fmt.pix_mp.width;
 	height = ctx->decoded_fmt.fmt.pix_mp.height;
 
 	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
-		size_t rcb_size = RCB_SIZE(i, width, height);
+		size_t rcb_size = ctx->rcb_bufs[i].size;
 
 		if (!ctx->rcb_bufs[i].cpu)
 			continue;
 
 		switch (ctx->rcb_bufs[i].type) {
 		case RKVDEC2_ALLOC_SRAM:
-			gen_pool_free(ctx->dev->sram_pool,
-				      (unsigned long)ctx->rcb_bufs[i].cpu,
-				      rcb_size);
+			unsigned long virt_addr = (unsigned long)ctx->rcb_bufs[i].cpu;
+
+			iommu_unmap(rkvdec->iommu_domain, virt_addr, rcb_size);
+			gen_pool_free(ctx->dev->sram_pool, virt_addr, rcb_size);
 			break;
 		case RKVDEC2_ALLOC_DMA:
 			dma_free_coherent(ctx->dev->dev,
@@ -585,6 +589,7 @@ static int rkvdec2_allocate_rcb(struct rkvdec2_ctx *ctx)
 {
 	int ret, i;
 	u32 width, height;
+	struct rkvdec2_dev *rkvdec = ctx->dev;
 
 	memset(ctx->rcb_bufs, 0, sizeof(*ctx->rcb_bufs));
 
@@ -597,15 +602,43 @@ static int rkvdec2_allocate_rcb(struct rkvdec2_ctx *ctx)
 		size_t rcb_size = RCB_SIZE(i, width, height);
 		enum rkvdec2_alloc_type alloc_type = RKVDEC2_ALLOC_SRAM;
 
+		/* Try allocating an SRAM buffer */
 		if (ctx->dev->sram_pool) {
+			if (rkvdec->iommu_domain)
+				rcb_size = ALIGN(rcb_size, 0x1000);
+
 			cpu = gen_pool_dma_zalloc_align(ctx->dev->sram_pool,
-							rcb_size,
-							&dma,
-							64);
+						rcb_size,
+						&dma,
+						0x1000);
 		}
 
+		/* If an IOMMU is used, map the SRAM address through it */
+		if (cpu && rkvdec->iommu_domain) {
+			unsigned long virt_addr = (unsigned long)cpu;
+			phys_addr_t phys_addr = dma;
+
+			ret = iommu_map(rkvdec->iommu_domain, virt_addr, phys_addr,
+					rcb_size, IOMMU_READ | IOMMU_WRITE, 0);
+			if (ret) {
+				gen_pool_free(ctx->dev->sram_pool,
+				      (unsigned long)cpu,
+				      rcb_size);
+				cpu = NULL;
+				goto ram_fallback;
+			}
+
+			/*
+			 * The registers will be configured with the virtual
+			 * address so that it goes through the IOMMU
+			 */
+			dma = virt_addr;
+		}
+
+ram_fallback:
 		/* Fallback to RAM */
 		if (!cpu) {
+			rcb_size = RCB_SIZE(i, width, height);
 			cpu = dma_alloc_coherent(ctx->dev->dev,
 						 rcb_size,
 						 &dma,
@@ -1161,16 +1194,11 @@ static int rkvdec2_probe(struct platform_device *pdev)
 	if (IS_ERR(rkvdec->regs))
 		return PTR_ERR(rkvdec->regs);
 
-	/*
-	 * Without IOMMU support, keep DMA in the lower 32 bits.
-	 */
-	ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
+	ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(40));
 	if (ret) {
 		dev_err(&pdev->dev, "Could not set DMA coherent mask.\n");
 		return ret;
 	}
-
-	vb2_dma_contig_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq <= 0)
@@ -1183,6 +1211,10 @@ static int rkvdec2_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Could not request vdec2 IRQ\n");
 		return ret;
 	}
+
+	rkvdec->iommu_domain = iommu_get_domain_for_dev(&pdev->dev);
+	if (!rkvdec->iommu_domain)
+		dev_info(&pdev->dev, "No IOMMU domain found\n");
 
 	rkvdec->sram_pool = of_gen_pool_get(pdev->dev.of_node, "sram", 0);
 	if (!rkvdec->sram_pool)

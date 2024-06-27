@@ -718,8 +718,14 @@ static int rkvdec2_h264_run(struct rkvdec2_ctx *ctx)
 
 	/* Set watchdog at 2 times the hardware timeout threshold */
 	u64 timeout_threshold = h264_ctx->regs.common.timeout_threshold;
-	watchdog_time = 2 * (1000 * timeout_threshold) / clk_get_rate(rkvdec->clocks[0].clk);
-	schedule_delayed_work(&rkvdec->watchdog_work, msecs_to_jiffies(watchdog_time));
+	unsigned long axi_rate = clk_get_rate(rkvdec->clocks[0].clk);
+
+	if (axi_rate)
+		watchdog_time = 2 * (1000 * timeout_threshold) / axi_rate;
+	else
+		watchdog_time = 2000;
+	schedule_delayed_work(&rkvdec->watchdog_work,
+			      msecs_to_jiffies(watchdog_time));
 
 	/* Start decoding! */
 	writel(RKVDEC2_REG_DEC_E_BIT, rkvdec->regs + RKVDEC2_REG_DEC_E);
