@@ -67,6 +67,7 @@ actions:
               - lava-test-shell
           run:
             steps:
+              - cat /sys/kernel/debug/devices_deferred
               - ip a s
               - hwclock -w
               - timedatectl set-ntp true
