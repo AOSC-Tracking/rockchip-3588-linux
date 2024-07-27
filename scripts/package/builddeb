@@ -53,6 +53,12 @@ create_package() {
 	dpkg-deb $dpkg_deb_opts ${KDEB_COMPRESS:+-Z$KDEB_COMPRESS} --build "$pdir" ..
 }
 
+find_in_scripts() {
+	find scripts \
+		\( -name atomic -o -name dtc -o -name kconfig -o -name package \) -prune -o \
+		! -name unifdef -a ! -name mk_elfconfig -a \( -type f -o -type l \) -print
+}
+
 deploy_kernel_headers () {
 	pdir=$1
 
@@ -61,9 +67,9 @@ deploy_kernel_headers () {
 	(
 		cd $srctree
 		find . arch/$SRCARCH -maxdepth 1 -name Makefile\*
-		find include scripts -type f -o -type l
 		find arch/$SRCARCH -name Kbuild.platforms -o -name Platform
-		find $(find arch/$SRCARCH -name include -o -name scripts -type d) -type f
+		find include \( -name config -o -name generated \) -prune -o \( -type f -o -type l \) -print
+		find_in_scripts
 	) > debian/hdrsrcfiles
 
 	{
@@ -71,7 +77,11 @@ deploy_kernel_headers () {
 			echo tools/objtool/objtool
 		fi
 
-		find arch/$SRCARCH/include Module.symvers include scripts -type f
+		echo Module.symvers
+		echo "arch/${SRCARCH}/include/generated"
+		echo include/config/auto.conf
+		echo include/generated
+		find_in_scripts
 
 		if is_enabled CONFIG_GCC_PLUGINS; then
 			find scripts/gcc-plugins -name \*.so
@@ -86,6 +96,8 @@ deploy_kernel_headers () {
 
 	# copy .config manually to be where it's expected to be
 	cp $KCONFIG_CONFIG $destdir/.config
+
+	find "${destdir}" \( -name '.*.cmd' -o -name '*.o' \) -delete
 
 	mkdir -p $pdir/lib/modules/$version/
 	ln -s /usr/src/linux-headers-$version $pdir/lib/modules/$version/build
