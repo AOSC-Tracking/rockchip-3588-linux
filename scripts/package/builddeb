@@ -97,6 +97,52 @@ deploy_kernel_headers () {
 	# copy .config manually to be where it's expected to be
 	cp $KCONFIG_CONFIG $destdir/.config
 
+	# When ${CC} and ${HOSTCC} differ, we are likely cross-compiling. Rebuild host
+	# programs using ${CC}. This assumes CC=${CROSS_COMPILE}gcc, which is usually
+	# the case for package building. It does not cross-compile when CC=clang.
+	#
+	# This caters to host programs that participate in Kbuild. objtool and
+	# resolve_btfids are out of scope.
+	if [ "${CC}" != "${HOSTCC}" ] && is_enabled CONFIG_CC_CAN_LINK; then
+		echo "Rebuilding host programs with ${CC}..."
+
+		find "${destdir}" \( -name '.*.cmd' -o -name '*.o' \) -delete
+
+		cat <<-'EOF' >  "${destdir}/Kbuild"
+		subdir-y := scripts
+		EOF
+
+		cat <<-'EOF' >  "${destdir}/scripts/Kbuild"
+		subdir-y := basic
+		hostprogs-always-y := mod/modpost
+		mod/modpost-objs := $(addprefix mod/, modpost.o file2alias.o sumversion.o)
+		mod/modpost.o: mod/modpost.c
+		mod/file2alias.o: mod/file2alias.c
+		mod/sumversion.o: mod/sumversion.c
+		EOF
+
+		# Workaround for an unclear build system problem
+		"${MAKE}" HOSTCC="${CC}" KBUILD_EXTMOD="${destdir}" scripts/mod/modpost.o
+		"${MAKE}" HOSTCC="${CC}" KBUILD_EXTMOD="${destdir}" scripts/mod/file2alias.o
+		"${MAKE}" HOSTCC="${CC}" KBUILD_EXTMOD="${destdir}" scripts/mod/sumversion.o
+
+		# HOSTCXX is not overridden. The C++ compiler is used to build:
+		# - scripts/kconfig/qconf, which is unneeded for external module builds
+		# - GCC plugins, which will not work on the installed system even with
+		#   being rebuilt.
+		#
+		# Use the single-target build to avoid the modpost invocation, which
+		# would overwrite Module.symvers.
+		"${MAKE}" HOSTCC="${CC}" KBUILD_EXTMOD="${destdir}" scripts/
+
+		rm "${destdir}/scripts/Kbuild"
+
+		# Run once again to rebuild parts apart from modpost
+		"${MAKE}" HOSTCC="${CC}" KBUILD_EXTMOD="${destdir}" scripts/
+
+		rm -f "${destdir}/Kbuild"
+	fi
+
 	find "${destdir}" \( -name '.*.cmd' -o -name '*.o' \) -delete
 
 	mkdir -p $pdir/lib/modules/$version/
