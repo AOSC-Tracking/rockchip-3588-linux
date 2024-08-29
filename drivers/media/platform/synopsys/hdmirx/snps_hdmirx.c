@@ -587,34 +587,18 @@ static void hdmirx_hpd_ctrl(struct snps_hdmirx_dev *hdmirx_dev, bool en)
 }
 
 static int hdmirx_write_edid(struct snps_hdmirx_dev *hdmirx_dev,
-			     struct v4l2_edid *edid, bool hpd_up)
+			     struct v4l2_edid *edid)
 {
 	u32 edid_len = edid->blocks * EDID_BLOCK_SIZE;
 	char data[300];
 	u32 i;
 
 	memset(edid->reserved, 0, sizeof(edid->reserved));
-	if (edid->pad)
-		return -EINVAL;
-
-	if (edid->start_block)
-		return -EINVAL;
-
-	if (edid->blocks > EDID_NUM_BLOCKS_MAX) {
-		edid->blocks = EDID_NUM_BLOCKS_MAX;
-		return -E2BIG;
-	}
-
-	if (!edid->blocks) {
-		hdmirx_dev->edid_blocks_written = 0;
-		return 0;
-	}
 
 	cec_s_phys_addr_from_edid(hdmirx_dev->cec->adap,
 				  (const struct edid *)edid->edid);
 
 	memset(&hdmirx_dev->edid, 0, sizeof(hdmirx_dev->edid));
-	hdmirx_hpd_ctrl(hdmirx_dev, false);
 	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG11,
 			   EDID_READ_EN_MASK |
 			   EDID_WRITE_EN_MASK |
@@ -652,10 +636,6 @@ static int hdmirx_write_edid(struct snps_hdmirx_dev *hdmirx_dev,
 
 	hdmirx_dev->edid_blocks_written = edid->blocks;
 	memcpy(&hdmirx_dev->edid, edid->edid, edid->blocks * EDID_BLOCK_SIZE);
-	if (hpd_up) {
-		if (tx_5v_power_present(hdmirx_dev))
-			hdmirx_hpd_ctrl(hdmirx_dev, true);
-	}
 
 	return 0;
 }
@@ -734,7 +714,30 @@ static int hdmirx_set_edid(struct file *file, void *fh, struct v4l2_edid *edid)
 	struct hdmirx_stream *stream = video_drvdata(file);
 	struct snps_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 	struct arm_smccc_res res;
+	u16 phys_addr;
 	int ret;
+
+	if (edid->pad)
+		return -EINVAL;
+
+	if (edid->start_block)
+		return -EINVAL;
+
+	if (edid->blocks > EDID_NUM_BLOCKS_MAX) {
+		edid->blocks = EDID_NUM_BLOCKS_MAX;
+		return -E2BIG;
+	}
+
+	if (!edid->blocks) {
+		cec_phys_addr_invalidate(hdmirx_dev->cec->adap);
+		hdmirx_dev->edid_blocks_written = 0;
+		return 0;
+	}
+
+	phys_addr = cec_get_edid_phys_addr(edid->edid, edid->blocks * 128, NULL);
+	ret = v4l2_phys_addr_validate(phys_addr, &phys_addr, NULL);
+	if (ret)
+		return ret;
 
 	disable_irq(hdmirx_dev->hdmi_irq);
 	disable_irq(hdmirx_dev->dma_irq);
@@ -743,9 +746,15 @@ static int hdmirx_set_edid(struct file *file, void *fh, struct v4l2_edid *edid)
 
 	if (tx_5v_power_present(hdmirx_dev))
 		hdmirx_plugout(hdmirx_dev);
-	ret = hdmirx_write_edid(hdmirx_dev, edid, false);
+
+	hdmirx_hpd_ctrl(hdmirx_dev, false);
+
+	ret = hdmirx_write_edid(hdmirx_dev, edid);
 	if (ret)
 		return ret;
+
+	if (tx_5v_power_present(hdmirx_dev))
+		hdmirx_hpd_ctrl(hdmirx_dev, true);
 
 	enable_irq(hdmirx_dev->hdmi_irq);
 	enable_irq(hdmirx_dev->dma_irq);
@@ -2367,7 +2376,6 @@ static void hdmirx_load_default_edid(struct snps_hdmirx_dev *hdmirx_dev)
 	int ret;
 	struct v4l2_edid def_edid;
 
-	hdmirx_hpd_ctrl(hdmirx_dev, false);
 
 	/* disable hpd and write edid */
 	def_edid.pad = 0;
@@ -2379,9 +2387,14 @@ static void hdmirx_load_default_edid(struct snps_hdmirx_dev *hdmirx_dev)
 	else
 		def_edid.edid = hdmirx_dev->edid;
 
-	ret = hdmirx_write_edid(hdmirx_dev, &def_edid, true);
+	hdmirx_hpd_ctrl(hdmirx_dev, false);
+
+	ret = hdmirx_write_edid(hdmirx_dev, &def_edid);
 	if (ret)
 		dev_err(hdmirx_dev->dev, "%s: write edid failed\n", __func__);
+
+	if (tx_5v_power_present(hdmirx_dev))
+		hdmirx_hpd_ctrl(hdmirx_dev, true);
 }
 
 static void hdmirx_disable_irq(struct device *dev)
