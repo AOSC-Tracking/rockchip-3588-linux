@@ -53,7 +53,6 @@ MODULE_PARM_DESC(debug, "debug level (0-3)");
 
 #define EDID_NUM_BLOCKS_MAX			2
 #define EDID_BLOCK_SIZE				128
-#define HDMIRX_STORED_BIT_WIDTH			8
 #define IREF_CLK_FREQ_HZ			428571429
 #define MEMORY_ALIGN_ROUND_UP_BYTES		64
 #define HDMIRX_PLANE_Y				0
