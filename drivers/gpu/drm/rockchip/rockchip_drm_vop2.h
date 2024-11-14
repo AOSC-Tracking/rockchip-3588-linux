@@ -64,6 +64,12 @@ enum vop2_scale_down_mode {
 	VOP2_SCALE_DOWN_AVG,
 };
 
+enum {
+	RST_ACLK,
+	RST_HCLK,
+	RST_VOP2_MAX
+};
+
 /*
  * vop2 internal power domain id,
  * should be all none zero, 0 will be treat as invalid;
@@ -332,6 +338,7 @@ struct vop2 {
 	struct clk *pclk;
 	struct clk *pll_hdmiphy0;
 	struct clk *pll_hdmiphy1;
+	struct reset_control_bulk_data resets[RST_VOP2_MAX];
 
 	/* optional internal rgb encoder */
 	struct rockchip_rgb *rgb;
