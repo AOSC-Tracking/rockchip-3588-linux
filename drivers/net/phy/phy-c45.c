@@ -680,7 +680,8 @@ EXPORT_SYMBOL_GPL(genphy_c45_read_mdix);
  * @phydev: target phy_device struct
  * @adv: the linkmode advertisement settings
  */
-int genphy_c45_write_eee_adv(struct phy_device *phydev, unsigned long *adv)
+static int genphy_c45_write_eee_adv(struct phy_device *phydev,
+				    unsigned long *adv)
 {
 	int val, changed = 0;
 
@@ -950,6 +951,7 @@ int genphy_c45_an_config_eee_aneg(struct phy_device *phydev)
 
 	return genphy_c45_write_eee_adv(phydev, phydev->advertising_eee);
 }
+EXPORT_SYMBOL_GPL(genphy_c45_an_config_eee_aneg);
 
 /**
  * genphy_c45_pma_baset1_read_abilities - read supported baset1 link modes from PMA
@@ -1521,20 +1523,17 @@ EXPORT_SYMBOL(genphy_c45_eee_is_active);
 int genphy_c45_ethtool_get_eee(struct phy_device *phydev,
 			       struct ethtool_keee *data)
 {
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(adv) = {};
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(lp) = {};
 	bool is_enabled;
 	int ret;
 
-	ret = genphy_c45_eee_is_active(phydev, adv, lp, &is_enabled);
+	ret = genphy_c45_eee_is_active(phydev, data->advertised,
+				       data->lp_advertised, &is_enabled);
 	if (ret < 0)
 		return ret;
 
 	data->eee_enabled = is_enabled;
 	data->eee_active = ret;
 	linkmode_copy(data->supported, phydev->supported_eee);
-	linkmode_copy(data->advertised, adv);
-	linkmode_copy(data->lp_advertised, lp);
 
 	return 0;
 }
@@ -1568,11 +1567,10 @@ int genphy_c45_ethtool_set_eee(struct phy_device *phydev,
 				phydev_warn(phydev, "At least some EEE link modes are not supported.\n");
 				return -EINVAL;
 			}
-		} else {
-			adv = phydev->supported_eee;
+			linkmode_copy(phydev->advertising_eee, adv);
+		} else if (linkmode_empty(phydev->advertising_eee)) {
+			phy_advertise_eee_all(phydev);
 		}
-
-		linkmode_copy(phydev->advertising_eee, adv);
 	}
 
 	phydev->eee_enabled = data->eee_enabled;
