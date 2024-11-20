@@ -68,6 +68,7 @@ deploy_kernel_headers () {
 		cd $srctree
 		find . arch/$SRCARCH -maxdepth 1 -name Makefile\*
 		find arch/$SRCARCH -name Kbuild.platforms -o -name Platform
+		find arch/$SRCARCH/include -print
 		find include \( -name config -o -name generated \) -prune -o \( -type f -o -type l \) -print
 		find_in_scripts
 	) > debian/hdrsrcfiles
