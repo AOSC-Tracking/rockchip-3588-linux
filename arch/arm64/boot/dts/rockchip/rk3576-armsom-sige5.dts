@@ -652,6 +652,10 @@
 	status = "okay";
 };
 
+&tsadc {
+	status = "okay";
+};
+
 &uart0 {
 	pinctrl-0 = <&uart0m0_xfer>;
 	status = "okay";
