@@ -84,6 +84,7 @@ check devicetrees:
                        -e BRCMFMAC_PROTO_BCDC -e BRCMFMAC_PROTO_MSGBUF
                        -e BRCMFMAC_USB
                        -e WLAN_VENDOR_REALTEK -m RTW89 -m RTW89_CORE
+                       -e DYNAMIC_DEBUG
                        -m RTW89_PCI -m RTW89_8825B -m RTW89_8852BE
                        -m BINFMT_MISC
     - make -j$(nproc) $ADDITIONAL_BUILD_CMD bindeb-pkg
