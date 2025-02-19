@@ -154,6 +154,10 @@ struct rkcif_hw {
 	bool				adapt_to_usbcamerahal;
 	u64				irq_time;
 	bool				is_rk3588s2;
+	struct gpio_desc		*isp0_frame_start_gpio;
+	struct gpio_desc		*isp0_frame_end_gpio;
+	struct gpio_desc		*isp1_frame_start_gpio;
+	struct gpio_desc		*isp1_frame_end_gpio;
 };
 
 void rkcif_hw_soft_reset(struct rkcif_hw *cif_hw, bool is_rst_iommu);

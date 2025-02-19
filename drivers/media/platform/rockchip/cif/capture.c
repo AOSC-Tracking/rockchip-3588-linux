@@ -12043,6 +12043,31 @@ unsigned int rkcif_irq_global(struct rkcif_device *cif_dev)
 	else
 		return intstat_glb;
 
+	/* VICAP_GLB_INTST frame_end_toisp1_chX (all channels on ISP1), see TRM1 page 2085-2086 */
+	if (intstat_glb & GENMASK(25,23)) {
+		int val = gpiod_get_value(cif_dev->hw_dev->isp0_frame_end_gpio);
+		gpiod_set_value(cif_dev->hw_dev->isp0_frame_end_gpio, !val);
+	}
+
+	/* VICAP_GLB_INTST frame_end_toisp0_chX (all channels on ISP0), see TRM1 page 2085-2086 */
+	if (intstat_glb & GENMASK(22,20)) {
+		int val = gpiod_get_value(cif_dev->hw_dev->isp0_frame_end_gpio);
+		gpiod_set_value(cif_dev->hw_dev->isp0_frame_end_gpio, !val);
+	}
+
+	/* VICAP_GLB_INTST frame_start_toisp1_chX (all channels on ISP1), see TRM1 page 2085-2086 */
+	if (intstat_glb & GENMASK(19,17)) {
+		int val = gpiod_get_value(cif_dev->hw_dev->isp0_frame_start_gpio);
+		gpiod_set_value(cif_dev->hw_dev->isp0_frame_start_gpio, !val);
+	}
+
+
+	/* VICAP_GLB_INTST frame_start_toisp0_chX (all channels on ISP0), see TRM1 page 2085-2086 */
+	if (intstat_glb & GENMASK(16,14)) {
+		int val = gpiod_get_value(cif_dev->hw_dev->isp0_frame_start_gpio);
+		gpiod_set_value(cif_dev->hw_dev->isp0_frame_start_gpio, !val);
+	}
+
 	if (intstat_glb & SCALE_TOISP_AXI0_ERR) {
 		v4l2_err(&cif_dev->v4l2_dev,
 			"ERROR: AXI0 bus err intstat_glb:0x%x !!\n",

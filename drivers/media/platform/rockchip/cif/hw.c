@@ -1473,6 +1473,19 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	if (irq < 0)
 		return irq;
 
+	cif_hw->isp0_frame_start_gpio = gpiod_get_optional(dev, "isp0-frame-start-notify", GPIOD_OUT_LOW);
+	if (IS_ERR(cif_hw->isp0_frame_start_gpio))
+		return dev_err_probe(dev, PTR_ERR(cif_hw->isp0_frame_start_gpio), "failed to get frame start notify GPIO");
+	cif_hw->isp0_frame_end_gpio = gpiod_get_optional(dev, "isp0-frame-end-notify", GPIOD_OUT_LOW);
+	if (IS_ERR(cif_hw->isp0_frame_end_gpio))
+		return dev_err_probe(dev, PTR_ERR(cif_hw->isp0_frame_end_gpio), "failed to get frame end notify GPIO");
+	cif_hw->isp1_frame_start_gpio = gpiod_get_optional(dev, "isp1-frame-start-notify", GPIOD_OUT_LOW);
+	if (IS_ERR(cif_hw->isp1_frame_start_gpio))
+		return dev_err_probe(dev, PTR_ERR(cif_hw->isp1_frame_start_gpio), "failed to get frame start notify GPIO");
+	cif_hw->isp1_frame_end_gpio = gpiod_get_optional(dev, "isp1-frame-end-notify", GPIOD_OUT_LOW);
+	if (IS_ERR(cif_hw->isp1_frame_end_gpio))
+		return dev_err_probe(dev, PTR_ERR(cif_hw->isp1_frame_end_gpio), "failed to get frame end notify GPIO");
+
 	ret = devm_request_irq(dev, irq, rkcif_irq_handler,
 			       IRQF_SHARED,
 			       dev_driver_string(dev), dev);
