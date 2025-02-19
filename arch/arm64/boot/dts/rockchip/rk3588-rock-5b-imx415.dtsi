@@ -103,6 +103,9 @@
 };
 
 &rkcif {
+	/* pin 3 and 5 on the pin header */
+	isp0-frame-start-notify-gpios = <&gpio4 RK_PB3 GPIO_ACTIVE_HIGH>; /* pin 3 on pin header */
+	isp0-frame-end-notify-gpios = <&gpio4 RK_PB2 GPIO_ACTIVE_HIGH>; /* pin 5 on pin header */
 	status = "okay";
 };
 
