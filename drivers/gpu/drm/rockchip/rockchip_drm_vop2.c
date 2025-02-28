@@ -33,6 +33,7 @@
 #include <linux/clk-provider.h>
 #include <linux/clk/clk-conf.h>
 #include <linux/iopoll.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_graph.h>
@@ -580,6 +581,7 @@ struct vop2_video_port {
 	bool need_reset_p2i_flag;
 	atomic_t post_buf_empty_flag;
 	const struct vop2_video_port_regs *regs;
+	struct gpio_desc *vsync_gpio;
 
 	struct completion dsp_hold_completion;
 	struct completion line_flag_completion;
@@ -6717,6 +6719,8 @@ static int vop2_crtc_enable_vblank(struct drm_crtc *crtc)
 	if (WARN_ON(!vop2->is_enabled))
 		return -EPERM;
 
+	dev_info(vop2->dev, "enable vblank events\n");
+
 	spin_lock_irqsave(&vop2->irq_lock, flags);
 
 	VOP_INTR_SET_TYPE(vop2, intr, clear, FS_FIELD_INTR, 1);
@@ -6738,6 +6742,8 @@ static void vop2_crtc_disable_vblank(struct drm_crtc *crtc)
 
 	if (WARN_ON(!vop2->is_enabled))
 		return;
+
+	dev_info(vop2->dev, "disable vblank events\n");
 
 	spin_lock_irqsave(&vop2->irq_lock, flags);
 
@@ -12619,7 +12625,8 @@ static irqreturn_t vop2_isr(int irq, void *data)
 		}
 
 		if (active_irqs & FS_FIELD_INTR) {
-			rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d\n", vp->id);
+			rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d with GPIO %p\n", vp->id, vp->vsync_gpio);
+			gpiod_set_value(vp->vsync_gpio, !gpiod_get_value(vp->vsync_gpio));
 			vop2_wb_handler(vp);
 			if (likely(!vp->skip_vsync) || (vp->layer_sel_update == false)) {
 				drm_crtc_handle_vblank(crtc);
@@ -12777,7 +12784,8 @@ static irqreturn_t vop3_vp_isr(int irq, void *data)
 	}
 
 	if (active_irqs & FS_FIELD_INTR) {
-		rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d\n", vp->id);
+		rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d with GPIO %p\n", vp->id, vp->vsync_gpio);
+		gpiod_set_value(vp->vsync_gpio, !gpiod_get_value(vp->vsync_gpio));
 		vop2_wb_handler(vp);
 		drm_crtc_handle_vblank(crtc);
 		vop2_handle_vblank(vop2, crtc);
@@ -14472,6 +14480,16 @@ static int vop2_bind(struct device *dev, struct device *master, void *data)
 				vop2->vps[vp_id].primary_plane_phy_id = ROCKCHIP_VOP2_PHY_ID_INVALID;
 
 			vop2->vps[vp_id].xmirror_en = of_property_read_bool(child, "xmirror-enable");
+
+			vop2->vps[vp_id].vsync_gpio = devm_fwnode_gpiod_get(dev, of_node_to_fwnode(child), "vsync-notify", GPIOD_OUT_LOW, fwnode_get_name(of_node_to_fwnode(child)));
+			if (IS_ERR(vop2->vps[vp_id].vsync_gpio)) {
+				if (PTR_ERR(vop2->vps[vp_id].vsync_gpio)) {
+					dev_err(dev, "No vsync-notify gpio for vp%d\n", vp_id);
+					vop2->vps[vp_id].vsync_gpio = NULL;
+				} else {
+					return dev_err_probe(dev, PTR_ERR(vop2->vps[vp_id].vsync_gpio), "failed to get vsync notify GPIO for vp%d", vp_id);
+				}
+			}
 
 			ret = of_clk_set_defaults(child, false);
 			if (ret) {
