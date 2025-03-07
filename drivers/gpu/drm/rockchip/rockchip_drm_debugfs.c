@@ -351,3 +351,222 @@ int rockchip_drm_debugfs_add_regs_write(struct drm_crtc *crtc, struct dentry *ro
 
 	return 0;
 }
+
+static int rockchip_debugfs_vps_sync_show(struct seq_file *m, void *data)
+{
+	seq_puts(m, "  Synchronize vp0 vp1 vp2 (blocking):\n");
+	seq_puts(m, "      echo 0 1 2 > /sys/kernel/debug/dri/0/vps_sync\n");
+
+	return 0;
+}
+
+static int rockchip_debugfs_vps_sync_open(struct inode *inode, struct file *file)
+{
+	struct drm_crtc *crtc = inode->i_private;
+
+	return single_open(file, rockchip_debugfs_vps_sync_show, crtc);
+}
+
+static ssize_t rockchip_debugfs_vps_sync_write(struct file *file, const char __user *ubuf,
+					       size_t len, loff_t *offp)
+{
+	struct seq_file *s = file->private_data;
+	struct drm_crtc *crtc = s->private;
+	struct rockchip_drm_private *priv = crtc->dev->dev_private;
+	int pipe = drm_crtc_index(crtc);
+	unsigned long crtc_mask = 0;
+	unsigned long vp_id = 0;
+	ssize_t bytes;
+	char kbuf[16] = {};
+	char *pbuf, *step_str;
+	int i, ret;
+
+	bytes = min(len, (sizeof(kbuf) - 1));
+	if (copy_from_user(kbuf, ubuf, bytes))
+		return -EFAULT;
+
+	pbuf = &kbuf[0];
+
+	for (i = 0; i < bytes; i++) {
+		step_str = strsep(&pbuf, " ");
+		if (!step_str)
+			break;
+
+		ret = kstrtol(step_str, 10, &vp_id);
+		if (ret)
+			return -EINVAL;
+		crtc_mask |= BIT(vp_id);
+	}
+
+	if (priv->crtc_funcs[pipe] && priv->crtc_funcs[pipe]->crtc_sync)
+		if (priv->crtc_funcs[pipe]->crtc_sync(crtc, crtc_mask))
+			return -EINVAL;
+
+	return len;
+}
+
+static const struct file_operations rockchip_debugfs_vps_sync_fops = {
+	.owner = THIS_MODULE,
+	.open = rockchip_debugfs_vps_sync_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.write = rockchip_debugfs_vps_sync_write,
+};
+
+int rockchip_drm_debugfs_add_vps_sync(struct drm_crtc *crtc, struct dentry *root)
+{
+	struct dentry *ent;
+
+	ent = debugfs_create_file("vps_sync", 0644, root, crtc, &rockchip_debugfs_vps_sync_fops);
+	if (!ent)
+		DRM_ERROR("Failed to add vps_sync for debugfs\n");
+
+	return 0;
+}
+
+static int rockchip_debugfs_vps_enable_show(struct seq_file *m, void *data)
+{
+	seq_puts(m, "  Enable vp0 vp1 vp2 synchronously (non-blocking):\n");
+	seq_puts(m, "      echo 0 1 2 > /sys/kernel/debug/dri/0/vps_enable\n");
+
+	return 0;
+}
+
+static int rockchip_debugfs_vps_enable_open(struct inode *inode, struct file *file)
+{
+	struct drm_crtc *crtc = inode->i_private;
+
+	return single_open(file, rockchip_debugfs_vps_enable_show, crtc);
+}
+
+static ssize_t rockchip_debugfs_vps_enable_write(struct file *file, const char __user *ubuf,
+					     size_t len, loff_t *offp)
+{
+	struct seq_file *s = file->private_data;
+	struct drm_crtc *crtc = s->private;
+	struct rockchip_drm_private *priv = crtc->dev->dev_private;
+	int pipe = drm_crtc_index(crtc);
+	unsigned long crtc_mask = 0;
+	unsigned long vp_id = 0;
+	ssize_t bytes;
+	char kbuf[16] = {};
+	char *pbuf, *step_str;
+	int i, ret;
+
+	bytes = min(len, (sizeof(kbuf) - 1));
+	if (copy_from_user(kbuf, ubuf, bytes))
+		return -EFAULT;
+
+	pbuf = &kbuf[0];
+
+	for (i = 0; i < bytes; i++) {
+		step_str = strsep(&pbuf, " ");
+		if (!step_str)
+			break;
+
+		ret = kstrtol(step_str, 10, &vp_id);
+		if (ret)
+			return -EINVAL;
+		crtc_mask |= BIT(vp_id);
+	}
+
+	if (priv->crtc_funcs[pipe] && priv->crtc_funcs[pipe]->crtc_enable)
+		if (priv->crtc_funcs[pipe]->crtc_enable(crtc, crtc_mask))
+			return -EINVAL;
+
+	return len;
+}
+
+static const struct file_operations rockchip_debugfs_vps_enable_fops = {
+	.owner = THIS_MODULE,
+	.open = rockchip_debugfs_vps_enable_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.write = rockchip_debugfs_vps_enable_write,
+};
+
+int rockchip_drm_debugfs_add_vps_enable(struct drm_crtc *crtc, struct dentry *root)
+{
+	struct dentry *ent;
+
+	ent = debugfs_create_file("vps_enable", 0644, root, crtc, &rockchip_debugfs_vps_enable_fops);
+	if (!ent)
+		DRM_ERROR("Failed to add vps_enable for debugfs\n");
+
+	return 0;
+}
+
+static int rockchip_debugfs_vps_disable_show(struct seq_file *m, void *data)
+{
+	seq_puts(m, "  Disable vp0 vp1 vp2 synchronously (blocking):\n");
+	seq_puts(m, "      echo 0 1 2 > /sys/kernel/debug/dri/0/vps_disable\n");
+
+	return 0;
+}
+
+static int rockchip_debugfs_vps_disable_open(struct inode *inode, struct file *file)
+{
+	struct drm_crtc *crtc = inode->i_private;
+
+	return single_open(file, rockchip_debugfs_vps_disable_show, crtc);
+}
+
+static ssize_t rockchip_debugfs_vps_disable_write(struct file *file, const char __user *ubuf,
+						  size_t len, loff_t *offp)
+{
+	struct seq_file *s = file->private_data;
+	struct drm_crtc *crtc = s->private;
+	struct rockchip_drm_private *priv = crtc->dev->dev_private;
+	int pipe = drm_crtc_index(crtc);
+	unsigned long crtc_mask = 0;
+	unsigned long vp_id = 0;
+	ssize_t bytes;
+	char kbuf[16] = {};
+	char *pbuf, *step_str;
+	int i, ret;
+
+	bytes = min(len, (sizeof(kbuf) - 1));
+	if (copy_from_user(kbuf, ubuf, bytes))
+		return -EFAULT;
+
+	pbuf = &kbuf[0];
+
+	for (i = 0; i < bytes; i++) {
+		step_str = strsep(&pbuf, " ");
+		if (!step_str)
+			break;
+
+		ret = kstrtol(step_str, 10, &vp_id);
+		if (ret)
+			return -EINVAL;
+		crtc_mask |= BIT(vp_id);
+	}
+
+	if (priv->crtc_funcs[pipe] && priv->crtc_funcs[pipe]->crtc_disable)
+		if (priv->crtc_funcs[pipe]->crtc_disable(crtc, crtc_mask))
+			return -EINVAL;
+
+	return len;
+}
+
+static const struct file_operations rockchip_debugfs_vps_disable_fops = {
+	.owner = THIS_MODULE,
+	.open = rockchip_debugfs_vps_disable_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+	.write = rockchip_debugfs_vps_disable_write,
+};
+
+int rockchip_drm_debugfs_add_vps_disable(struct drm_crtc *crtc, struct dentry *root)
+{
+	struct dentry *ent;
+
+	ent = debugfs_create_file("vps_disable", 0644, root, crtc, &rockchip_debugfs_vps_disable_fops);
+	if (!ent)
+		DRM_ERROR("Failed to add vps_disable for debugfs\n");
+
+	return 0;
+}
