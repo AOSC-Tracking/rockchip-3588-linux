@@ -910,6 +910,8 @@ struct vop2 {
 
 	uint16_t port_mux_cfg;
 
+	uint8_t sync_vp_mask;
+
 	uint32_t *regsbak;
 	struct regmap *grf;
 	struct regmap *sys_grf;
@@ -1190,6 +1192,38 @@ static void vop2_crtc_standby(struct drm_crtc *crtc, bool standby)
 	}
 }
 
+static int vop2_crtc_sync(struct drm_crtc *crtc, unsigned long crtc_mask)
+{
+	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+	struct vop2 *vop2 = vp->vop2;
+	int vp_id;
+	bool hold = true;
+
+	/* It it not allowed to operate on a vp which is not active yet */
+	crtc_mask &= vop2->active_vp_mask;
+
+	DRM_INFO("Sync crtc_mask: 0x%lx\n", crtc_mask);
+	for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
+		vp = &vop2->vps[vp_id];
+		VOP_MODULE_SET(vop2, vp, standby, 1);
+	}
+
+	do {
+		mdelay(50);
+		for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
+			vp = &vop2->vps[vp_id];
+			hold |= VOP_MODULE_GET(vop2, vp, standby);
+		}
+	} while (!hold);
+
+	for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
+		vp = &vop2->vps[vp_id];
+		VOP_MODULE_SET(vop2, vp, standby, 0);
+	}
+
+	return 0;
+}
+
 static void vop2_crtc_output_post_enable(struct drm_crtc *crtc, int intf)
 {
 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
@@ -1201,6 +1235,11 @@ static void vop2_crtc_output_post_enable(struct drm_crtc *crtc, int intf)
 		VOP_CTRL_SET(vop2, dp1_en, 1);
 	else if (intf & VOP_OUTPUT_IF_DP2)
 		VOP_CTRL_SET(vop2, dp2_en, 1);
+
+	if (vop2->sync_vp_mask) {
+		if (vop2->active_vp_mask == vop2->sync_vp_mask)
+			vop2_crtc_sync(crtc, vop2->sync_vp_mask);
+	}
 
 	dev_info(vop2->dev, "vop enable intf:%x\n", intf);
 }
@@ -7955,38 +7994,6 @@ static int vop2_crtc_get_crc(struct drm_crtc *crtc)
 	return 0;
 }
 
-static int vop2_crtc_sync(struct drm_crtc *crtc, unsigned long crtc_mask)
-{
-	struct vop2_video_port *vp = to_vop2_video_port(crtc);
-	struct vop2 *vop2 = vp->vop2;
-	int vp_id;
-	bool hold = true;
-
-	/* It it not allowed to operate on a vp which is not active yet */
-	crtc_mask &= vop2->active_vp_mask;
-
-	DRM_INFO("Sync crtc_mask: 0x%lx\n", crtc_mask);
-	for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
-		vp = &vop2->vps[vp_id];
-		VOP_MODULE_SET(vop2, vp, standby, 1);
-	}
-
-	do {
-		mdelay(50);
-		for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
-			vp = &vop2->vps[vp_id];
-			hold |= VOP_MODULE_GET(vop2, vp, standby);
-		}
-	} while (!hold);
-
-	for_each_set_bit(vp_id, &crtc_mask, ROCKCHIP_MAX_CRTC) {
-		vp = &vop2->vps[vp_id];
-		VOP_MODULE_SET(vop2, vp, standby, 0);
-	}
-
-	return 0;
-}
-
 static int vop2_crtc_enable(struct drm_crtc *crtc, unsigned long crtc_mask)
 {
 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
@@ -14621,6 +14628,8 @@ static int vop2_bind(struct device *dev, struct device *master, void *data)
 			kfree(plane_mask_string);
 		}
 	}
+
+	of_property_read_u8(dev->of_node, "rockchip,sync-vp-mask", &vop2->sync_vp_mask);
 
 	vop2_extend_clk_init(vop2);
 	spin_lock_init(&vop2->reg_lock);
