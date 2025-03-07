@@ -12720,6 +12720,10 @@ static irqreturn_t vop2_isr(int irq, void *data)
 			rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d with GPIO %p\n", vp->id, vp->vsync_gpio);
 			gpiod_set_value(vp->vsync_gpio, !gpiod_get_value(vp->vsync_gpio));
 			vop2_wb_handler(vp);
+			dev_dbg(vop2->dev, "handle vp%d int: vp0-vcnt:%d, vp1-vcnt:%d, vp2-vcnt:%d\n",
+					vp->id,
+					vop2_read_vcnt(&vop2->vps[0]), vop2_read_vcnt(&vop2->vps[1]),
+					vop2_read_vcnt(&vop2->vps[2]));
 			if (likely(!vp->skip_vsync) || (vp->layer_sel_update == false)) {
 				drm_crtc_handle_vblank(crtc);
 				vop2_handle_vblank(vop2, crtc);
@@ -12878,6 +12882,10 @@ static irqreturn_t vop3_vp_isr(int irq, void *data)
 	if (active_irqs & FS_FIELD_INTR) {
 		rockchip_drm_dbg(vop2->dev, VOP_DEBUG_VSYNC, "vsync_vp%d with GPIO %p\n", vp->id, vp->vsync_gpio);
 		gpiod_set_value(vp->vsync_gpio, !gpiod_get_value(vp->vsync_gpio));
+		dev_dbg(vop2->dev, "handle vp%d int: vp0-vcnt:%d, vp1-vcnt:%d, vp2-vcnt:%d\n",
+			vp->id,
+			vop2_read_vcnt(&vop2->vps[0]), vop2_read_vcnt(&vop2->vps[1]),
+			vop2_read_vcnt(&vop2->vps[2]));
 		vop2_wb_handler(vp);
 		drm_crtc_handle_vblank(crtc);
 		vop2_handle_vblank(vop2, crtc);
