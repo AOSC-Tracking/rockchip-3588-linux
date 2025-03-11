@@ -19,7 +19,7 @@ check devicetrees:
     ARCH: arm64
     DEFCONFIG: defconfig
     CROSS_COMPILE: aarch64-linux-gnu-
-    DUT: rockchip/rk3588s-rock-5a.dtb rockchip/rk3588-rock-5b.dtb rockchip/rk3588-evb1-v10.dtb rockchip/rk3576-armsom-sige5.dtb
+    DUT: rockchip/rk3588s-rock-5a.dtb rockchip/rk3588-rock-5b.dtb rockchip/rk3588-rock-5b-plus.dtb rockchip/rk3588-evb1-v10.dtb rockchip/rk3576-armsom-sige5.dtb
   before_script:
     - apt update
     - apt install -y devscripts
