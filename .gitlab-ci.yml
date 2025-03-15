@@ -81,6 +81,7 @@ check devicetrees:
   script:
     - make $DEFCONFIG
     - ./scripts/config -e WLAN -e WLAN_VENDOR_BROADCOM -m BRCMUTIL -m BRCMFMAC
+                       -e CRYPTO_USER_API_HASH -e CRYPTO_USER_API_SKCIPHER -e KEY_DH_OPERATIONS
                        -e BRCMFMAC_PROTO_BCDC -e BRCMFMAC_PROTO_MSGBUF
                        -e BRCMFMAC_USB
                        -e WLAN_VENDOR_REALTEK -m RTW89 -m RTW89_CORE
