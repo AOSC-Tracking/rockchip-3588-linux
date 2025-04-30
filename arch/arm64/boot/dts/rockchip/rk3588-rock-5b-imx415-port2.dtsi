@@ -106,6 +106,9 @@
 };
 
 &rkcif {
+	/* pin 11 and 13 on the pin header */
+	isp1-frame-start-notify-gpios = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>; /* pin 11 on pin header */
+	isp1-frame-end-notify-gpios = <&gpio3 RK_PB7 GPIO_ACTIVE_HIGH>; /* pin 13 on pin header */
 	status = "okay";
 };
 
@@ -153,4 +156,8 @@
 			remote-endpoint = <&mipi_lvds4_sditf>;
 		};
 	};
+};
+
+&vp1 {
+	vsync-notify-gpios = <&gpio3 RK_PC0 GPIO_ACTIVE_HIGH>; /* pin 15 on pin header */
 };
