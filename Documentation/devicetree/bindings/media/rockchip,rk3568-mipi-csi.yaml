@@ -17,7 +17,12 @@ description:
 
 properties:
   compatible:
-    const: rockchip,rk3568-mipi-csi
+    oneOf:
+      - items:
+          - enum:
+              - rockchip,rk3588-mipi-csi
+          - const: rockchip,rk3568-mipi-csi
+      - const: rockchip,rk3568-mipi-csi
 
   reg:
     maxItems: 1
