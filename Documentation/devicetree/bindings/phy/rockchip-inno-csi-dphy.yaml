@@ -21,6 +21,7 @@ properties:
       - rockchip,rk3326-csi-dphy
       - rockchip,rk3368-csi-dphy
       - rockchip,rk3568-csi-dphy
+      - rockchip,rk3588-csi-dphy
 
   reg:
     maxItems: 1
@@ -48,8 +49,32 @@ properties:
 
   rockchip,grf:
     $ref: /schemas/types.yaml#/definitions/phandle
-    description:
-      Some additional phy settings are access through GRF regs.
+    description: Some additional phy settings are access through GRF regs.
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            anyOf:
+              enum:
+                - rockchip,px30-csi-dphy
+                - rockchip,rk1808-csi-dphy
+                - rockchip,rk3326-csi-dphy
+                - rockchip,rk3368-csi-dphy
+                - rockchip,rk3568-csi-dphy
+    then:
+      properties:
+        resets:
+          items:
+            - description: exclusive PHY reset line
+
+        reset-names:
+          items:
+            - const: apb
+
+      required:
+        - reset-names
 
 required:
   - compatible
@@ -59,7 +84,6 @@ required:
   - '#phy-cells'
   - power-domains
   - resets
-  - reset-names
   - rockchip,grf
 
 additionalProperties: false
