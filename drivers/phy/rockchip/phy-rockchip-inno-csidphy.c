@@ -157,7 +157,7 @@ static inline void write_grf_reg(struct rockchip_inno_csidphy *priv,
 		regmap_write(priv->grf, reg->offset,
 			     HIWORD_UPDATE(value, reg->mask, reg->shift));
 	} else {
-		pr_info("GUSTAV FANCY WRITE %d to 0x%x", value, reg->offset);
+		pr_info("GUSTAV FANCY WRITE 0x%x to 0x%x", HIWORD_UPDATE(value, reg->mask, reg->shift), reg->offset);
 		regmap_write(priv->grf, reg->offset,
 			     HIWORD_UPDATE(value, reg->mask, reg->shift));
 

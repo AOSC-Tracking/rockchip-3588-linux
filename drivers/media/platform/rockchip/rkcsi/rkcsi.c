@@ -259,6 +259,9 @@ static int rkcsi_start(struct rkcsi_device *csi_dev)
 	rkcsi_write(csi_dev, CSI2HOST_CONTROL, control);
 	rkcsi_write(csi_dev, CSI2HOST_CSI2_RESETN, 1);
 
+	rkcsi_write(csi_dev, CSI2HOST_MSK1, 0x0);
+	rkcsi_write(csi_dev, CSI2HOST_MSK2, 0x0);
+
 	ret = phy_power_on(csi_dev->phy);
 	if (ret)
 		return ret;
@@ -268,6 +271,13 @@ static int rkcsi_start(struct rkcsi_device *csi_dev)
 
 static void rkcsi_stop(struct rkcsi_device *csi_dev)
 {
+	for (unsigned int i = 0; i < 100; i++) {
+		u32 val;
+
+		val = rkcsi_read(csi_dev, CSI2HOST_PHY_STATE);
+		dev_info(csi_dev->dev, "%s got CSI2HOST_PHY_STATE = 0x%x", __func__, val);
+	}
+
 	phy_power_off(csi_dev->phy);
 
 	rkcsi_write(csi_dev, CSI2HOST_CSI2_RESETN, 0);
@@ -622,11 +632,30 @@ static const struct of_device_id rkcsi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, rkcsi_of_match);
 
+static irqreturn_t rkcsi_isr(int irq, void *ctx)
+{
+	struct device *dev = ctx;
+	struct rkcsi_device *csi_dev = dev_get_drvdata(dev);
+	irqreturn_t ret = IRQ_NONE;
+	u32 val;
+
+	val = rkcsi_read(csi_dev, CSI2HOST_PHY_STATE);
+	dev_info(dev, "%s got CSI2HOST_PHY_STATE = 0x%x", __func__, val);
+	val = rkcsi_read(csi_dev, CSI2HOST_ERR1);
+	dev_info(dev, "%s got CSI2HOST_ERR1 = 0x%x", __func__, val);
+	val = rkcsi_read(csi_dev, CSI2HOST_ERR2);
+	dev_info(dev, "%s got CSI2HOST_ERR2 = 0x%x", __func__, val);
+
+	ret = IRQ_HANDLED;
+
+	return ret;
+}
+
 static int rkcsi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rkcsi_device *csi_dev;
-	int ret;
+	int ret, irq;
 
 	csi_dev = devm_kzalloc(dev, sizeof(*csi_dev), GFP_KERNEL);
 	if (!csi_dev)
@@ -637,6 +666,30 @@ static int rkcsi_probe(struct platform_device *pdev)
 	csi_dev->base_addr = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(csi_dev->base_addr))
 		return PTR_ERR(csi_dev->base_addr);
+
+	irq = platform_get_irq_byname(pdev, "intr1");
+	if (irq > 0) {
+		//irq_set_status_flags(irq, IRQ_NOAUTOEN);
+		ret = devm_request_irq(dev, irq, rkcsi_isr, 0,
+				       dev_driver_string(dev), dev);
+		if (ret < 0)
+			dev_err(&pdev->dev,
+				"request csi-intr1 irq failed: %d\n", ret);
+	} else {
+		dev_err(&pdev->dev, "No found irq csi-intr1\n");
+	}
+
+	irq = platform_get_irq_byname(pdev, "intr2");
+	if (irq > 0) {
+		//irq_set_status_flags(irq, IRQ_NOAUTOEN);
+		ret = devm_request_irq(dev, irq, rkcsi_isr, 0,
+				       dev_driver_string(dev), dev);
+		if (ret < 0)
+			dev_err(&pdev->dev, "request csi-intr2 failed: %d\n",
+				ret);
+	} else {
+		dev_err(&pdev->dev, "No found irq csi-intr2\n");
+	}
 
 	ret = devm_clk_bulk_get_all(dev, &csi_dev->clks);
 	if (ret != RKCSI_CLKS_MAX)

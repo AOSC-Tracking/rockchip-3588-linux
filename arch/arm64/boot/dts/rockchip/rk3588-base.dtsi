@@ -1373,6 +1373,9 @@
 	csi0: csi@fdd10000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd10000 0x0 0x10000>;
+		interrupts = <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_0>;
 		//phys = <&mipi_dcphy0>; // TODO
 		phy-names = "csiphy";
@@ -1401,6 +1404,9 @@
 	csi1: csi@fdd20000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd20000 0x0 0x10000>;
+		interrupts = <GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_1>;
 		//phys = <&mipi_dcphy1>; // TODO
 		phy-names = "csiphy";
@@ -1429,6 +1435,9 @@
 	csi2: csi@fdd30000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd30000 0x0 0x10000>;
+		interrupts = <GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_2>;
 		phys = <&csi_dphy0>;
 		phy-names = "csiphy";
@@ -1457,6 +1466,9 @@
 	csi3: csi@fdd40000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd40000 0x0 0x10000>;
+		interrupts = <GIC_SPI 149 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_3>;
 		phys = <&csi_dphy0>;
 		phy-names = "csiphy";
@@ -1485,6 +1497,9 @@
 	csi4: csi@fdd50000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd50000 0x0 0x10000>;
+		interrupts = <GIC_SPI 151 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_4>;
 		phys = <&csi_dphy1>;
 		phy-names = "csiphy";
@@ -1513,6 +1528,9 @@
 	csi5: csi@fdd60000 {
 		compatible = "rockchip,rk3588-mipi-csi", "rockchip,rk3568-mipi-csi";
 		reg = <0x0 0xfdd60000 0x0 0x10000>;
+		interrupts = <GIC_SPI 153 IRQ_TYPE_LEVEL_HIGH 0>,
+			     <GIC_SPI 154 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "intr1", "intr2";
 		clocks = <&cru PCLK_CSI_HOST_5>;
 		phys = <&csi_dphy1>;
 		phy-names = "csiphy";
