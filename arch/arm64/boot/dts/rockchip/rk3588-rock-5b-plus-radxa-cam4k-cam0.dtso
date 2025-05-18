@@ -12,7 +12,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 
 &{/} {
-	vcc_cam0: vcc-cam0-regulator {
+	vcc_cam0: regulator-vcc-cam0 {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio1 RK_PB0 GPIO_ACTIVE_HIGH>;
@@ -35,7 +35,7 @@
 		assigned-clock-rates = <27000000>;
 		avdd-supply = <&vcc_cam0>;
 		clocks = <&cru CLK_MIPI_CAMARAOUT_M3>;
-		clock-names = "inck";
+		clock-names = "inck"; // TODO should not be necessary according to binding, apply driver fix
 		dvdd-supply = <&vcc_cam0>;
 		orientation = <2>; /* External */
 		ovdd-supply = <&vcc_cam0>;
@@ -44,7 +44,7 @@
 		reset-gpios = <&gpio4 RK_PA0 GPIO_ACTIVE_LOW>;
 
 		port {
-			imx415_ep: endpoint {
+			imx415_output: endpoint {
 				data-lanes = <1 2 3 4>;
 				link-frequencies = /bits/ 64 <445500000>;
 				remote-endpoint = <&csi2_input>;
@@ -73,7 +73,7 @@
 	csi2_input: endpoint {
 		data-lanes = <1 2 3 4>;
 		link-frequencies = /bits/ 64 <445500000>;
-		remote-endpoint = <&imx415_ep>;
+		remote-endpoint = <&imx415_output>;
 	};
 };
 
