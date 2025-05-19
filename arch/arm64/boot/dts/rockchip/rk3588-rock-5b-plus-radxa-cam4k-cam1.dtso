@@ -32,7 +32,7 @@
 		compatible = "sony,imx415";
 		reg = <0x1a>;
 		assigned-clocks = <&cru CLK_MIPI_CAMARAOUT_M4>;
-		assigned-clock-rates = <27000000>;
+		assigned-clock-rates = <37125000>;
 		avdd-supply = <&vcc_cam1>;
 		clocks = <&cru CLK_MIPI_CAMARAOUT_M3>;
 		clock-names = "inck"; // TODO should not be necessary according to binding, apply driver fix
