@@ -21,8 +21,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
-
-#include "rkvdec2-regs.h"
+#include <media/v4l2-mem2mem.h>
 
 #define RKVDEC2_RCB_COUNT	10
 
@@ -105,21 +104,35 @@ struct rkvdec2_coded_fmt_desc {
 	u32 subsystem_flags;
 };
 
+struct rkvdec_config {
+	u32 irq_reg;
+	u32 irq_cfg_reg;
+	u32 irq_disable_bit;
+	u32 irq_ready_bit;
+	u32 irq_reset_bit;
+	struct rkvdec2_coded_fmt_desc *coded_fmts;
+	size_t coded_fmts_num;
+};
+
 struct rkvdec2_dev {
 	struct v4l2_device v4l2_dev;
 	struct media_device mdev;
 	struct video_device vdev;
 	struct v4l2_m2m_dev *m2m_dev;
 	struct device *dev;
+	struct rkvdec2_coded_fmt_desc *coded_fmts;
+	struct rkvdec_config *config;
 	struct clk_bulk_data *clocks;
 	unsigned int clk_count;
 	struct clk *axi_clk;
 	void __iomem *regs;
+	void __iomem *link;
 	struct gen_pool *sram_pool;
 	struct mutex vdev_lock; /* serializes ioctls */
 	struct delayed_work watchdog_work;
 	struct iommu_domain *iommu_domain;
 	struct iommu_domain *empty_domain;
+	struct rkvdec2_aux_buf fix;
 };
 
 struct rkvdec2_ctx {
@@ -146,6 +159,7 @@ void rkvdec2_run_preamble(struct rkvdec2_ctx *ctx, struct rkvdec2_run *run);
 void rkvdec2_run_postamble(struct rkvdec2_ctx *ctx, struct rkvdec2_run *run);
 
 extern const struct rkvdec2_coded_fmt_ops rkvdec2_h264_fmt_ops;
+extern const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu383_h264_fmt_ops;
 extern const struct rkvdec2_coded_fmt_ops rkvdec2_hevc_fmt_ops;
 
 #endif /* RKVDEC_H_ */

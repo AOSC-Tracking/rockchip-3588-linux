@@ -995,7 +995,7 @@ static int rkvdec2_hevc_run(struct rkvdec2_ctx *ctx)
 	schedule_delayed_work(&rkvdec->watchdog_work, msecs_to_jiffies(2000));
 
 	/* Start decoding! */
-	writel(RKVDEC2_REG_DEC_E_BIT, rkvdec->regs + RKVDEC2_REG_DEC_E);
+	writel(VDPU381_DEC_E_BIT, rkvdec->regs + VDPU381_REG_DEC_E);
 
 	return 0;
 }

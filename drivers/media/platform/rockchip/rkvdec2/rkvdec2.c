@@ -27,6 +27,9 @@
 #include <media/videobuf2-vmalloc.h>
 
 #include "rkvdec2.h"
+#include "rkvdec2-regs.h"
+#include "rkvdec2-vdpu383-regs.h"
+#include "rkvdec2-rk3576.h"
 
 static inline bool rkvdec2_image_fmt_match(enum rkvdec2_image_fmt fmt1,
 					   enum rkvdec2_image_fmt fmt2)
@@ -83,7 +86,7 @@ static u32 rkvdec2_fill_decoded_pixfmt(struct rkvdec2_ctx *ctx,
 
 	colmv_offset = pix_mp->plane_fmt[0].sizeimage;
 
-	pix_mp->plane_fmt[0].sizeimage += 128 *
+	pix_mp->plane_fmt[0].sizeimage += 512 *
 		DIV_ROUND_UP(pix_mp->width, 16) *
 		DIV_ROUND_UP(pix_mp->height, 16);
 
@@ -303,7 +306,7 @@ static const struct rkvdec2_decoded_fmt_desc rkvdec2_hevc_decoded_fmts[] = {
 	},
 };
 
-static const struct rkvdec2_coded_fmt_desc rkvdec2_coded_fmts[] = {
+static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu381_coded_fmts[] = {
 	{
 		.fourcc = V4L2_PIX_FMT_H264_SLICE,
 		.frmsize = {
@@ -315,7 +318,7 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_coded_fmts[] = {
 			.step_height = 16,
 		},
 		.ctrls = &rkvdec2_h264_ctrls,
-		.ops = &rkvdec2_h264_fmt_ops,
+//		.ops = &rkvdec2_h264_fmt_ops, //TODO: Rename me
 		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_h264_decoded_fmts),
 		.decoded_fmts = rkvdec2_h264_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
@@ -338,14 +341,50 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_coded_fmts[] = {
 	},
 };
 
+static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu383_coded_fmts[] = {
+	{
+		.fourcc = V4L2_PIX_FMT_H264_SLICE,
+		.frmsize = {
+			.min_width = 64,
+			.max_width =  65520,
+			.step_width = 64,
+			.min_height = 16,
+			.max_height =  65520,
+			.step_height = 16,
+		},
+		.ctrls = &rkvdec2_h264_ctrls,
+		.ops = &rkvdec2_vdpu383_h264_fmt_ops,
+		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_h264_decoded_fmts),
+		.decoded_fmts = rkvdec2_h264_decoded_fmts,
+		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
+	},
+/*	{
+		.fourcc = V4L2_PIX_FMT_HEVC_SLICE,
+		.frmsize = {
+			.min_width = 16,
+			.max_width = 65472,
+			.step_width = 16,
+			.min_height = 16,
+			.max_height = 65472,
+			.step_height = 16,
+		},
+		.ctrls = &rkvdec2_hevc_ctrls,
+		.ops = &rkvdec2_hevc_fmt_ops,
+		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_hevc_decoded_fmts),
+		.decoded_fmts = rkvdec2_hevc_decoded_fmts,
+		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
+	},*/
+};
+
 static const struct rkvdec2_coded_fmt_desc *rkvdec2_find_coded_fmt_desc(struct rkvdec2_ctx *ctx,
 									u32 fourcc)
 {
-	unsigned int i;
+	struct rkvdec2_coded_fmt_desc *coded_fmts = ctx->dev->coded_fmts;
+	int i;
 
-	for (i = 0; i < ARRAY_SIZE(rkvdec2_coded_fmts); i++) {
-		if (rkvdec2_coded_fmts[i].fourcc == fourcc)
-			return &rkvdec2_coded_fmts[i];
+	for (i = 0; i < ctx->dev->config->coded_fmts_num; i++) {
+		if (coded_fmts[i].fourcc == fourcc)
+			return &coded_fmts[i];
 	}
 
 	return NULL;
@@ -355,7 +394,7 @@ static void rkvdec2_reset_coded_fmt(struct rkvdec2_ctx *ctx)
 {
 	struct v4l2_format *f = &ctx->coded_fmt;
 
-	ctx->coded_fmt_desc = &rkvdec2_coded_fmts[0];
+	ctx->coded_fmt_desc = ctx->dev->coded_fmts;
 	rkvdec2_reset_fmt(ctx, f, ctx->coded_fmt_desc->fourcc);
 
 	f->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -448,8 +487,8 @@ static int rkvdec2_try_output_fmt(struct file *file, void *priv,
 
 	desc = rkvdec2_find_coded_fmt_desc(ctx, pix_mp->pixelformat);
 	if (!desc) {
-		pix_mp->pixelformat = rkvdec2_coded_fmts[0].fourcc;
-		desc = &rkvdec2_coded_fmts[0];
+		pix_mp->pixelformat = ctx->dev->coded_fmts[0].fourcc;
+		desc = ctx->dev->coded_fmts;
 	}
 
 	v4l2_apply_frmsize_constraints(&pix_mp->width,
@@ -578,10 +617,13 @@ static int rkvdec2_g_capture_fmt(struct file *file, void *priv,
 static int rkvdec2_enum_output_fmt(struct file *file, void *priv,
 				   struct v4l2_fmtdesc *f)
 {
-	if (f->index >= ARRAY_SIZE(rkvdec2_coded_fmts))
+	struct rkvdec2_ctx *ctx = fh_to_rkvdec2_ctx(priv);
+	struct rkvdec2_coded_fmt_desc *coded_fmts = ctx->dev->coded_fmts;
+
+	if (f->index >= ctx->dev->config->coded_fmts_num)
 		return -EINVAL;
 
-	f->pixelformat = rkvdec2_coded_fmts[f->index].fourcc;
+	f->pixelformat = coded_fmts[f->index].fourcc;
 
 	return 0;
 }
@@ -724,7 +766,7 @@ struct rcb_size_info {
 	enum rcb_axis axis;
 };
 
-static struct rcb_size_info rcb_sizes[] = {
+static struct rcb_size_info vdpu381_rcb_sizes[] = {
 	{6,	PIC_WIDTH},	// intrar
 	{1,	PIC_WIDTH},	// transdr (Is actually 0.4*pic_width)
 	{1,	PIC_HEIGHT},	// transdc (Is actually 0.1*pic_height)
@@ -735,6 +777,21 @@ static struct rcb_size_info rcb_sizes[] = {
 	{6,	PIC_WIDTH},	// saor
 	{11,	PIC_WIDTH},	// fbcr
 	{67,	PIC_HEIGHT},	// filtc col
+};
+
+//static struct rcb_size_info vdpu383_rcb_sizes[] = {
+static struct rcb_size_info rcb_sizes[] = {
+        {3,     PIC_WIDTH},     // streamd
+        {3,     PIC_WIDTH},     // streamd_tile
+        {6,     PIC_WIDTH},     // inter
+        {6,     PIC_WIDTH},     // inter_tile
+        {5,     PIC_WIDTH},     // intra
+        {5,     PIC_WIDTH},     // intra_tile
+        {60,    PIC_WIDTH},     // filterd
+        {60,    PIC_WIDTH},     // filterd_protect
+        {60,    PIC_WIDTH},     // filterd_tile_row
+        {90,    PIC_HEIGHT},    // filterd_tile_col
+//      {0,     PIC_HEIGHT},    // FILTERD_AV1_UP_TILE
 };
 
 #define RCB_SIZE(n, w, h) (rcb_sizes[(n)].multiplier * (rcb_sizes[(n)].axis ? (h) : (w)))
@@ -1093,16 +1150,18 @@ static int rkvdec2_add_ctrls(struct rkvdec2_ctx *ctx,
 
 static int rkvdec2_init_ctrls(struct rkvdec2_ctx *ctx)
 {
-	unsigned int i, nctrls = 0;
-	int ret;
+	struct rkvdec2_coded_fmt_desc *coded_fmts = ctx->dev->coded_fmts;
+	unsigned int nctrls = 0;
+	int ret, i;
 
-	for (i = 0; i < ARRAY_SIZE(rkvdec2_coded_fmts); i++)
-		nctrls += rkvdec2_coded_fmts[i].ctrls->num_ctrls;
+	for (i = 0; i < ctx->dev->config->coded_fmts_num; i++) {
+		nctrls += coded_fmts[i].ctrls->num_ctrls;
+	}
 
 	v4l2_ctrl_handler_init(&ctx->ctrl_hdl, nctrls);
 
-	for (i = 0; i < ARRAY_SIZE(rkvdec2_coded_fmts); i++) {
-		ret = rkvdec2_add_ctrls(ctx, rkvdec2_coded_fmts[i].ctrls);
+	for (i = 0; i < ctx->dev->config->coded_fmts_num; i++) {
+		ret = rkvdec2_add_ctrls(ctx, coded_fmts[i].ctrls);
 		if (ret)
 			goto err_free_handler;
 	}
@@ -1282,27 +1341,34 @@ static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
 {
 	struct rkvdec2_dev *rkvdec = priv;
 	struct rkvdec2_ctx *ctx = v4l2_m2m_get_curr_priv(rkvdec->m2m_dev);
+	struct rkvdec_config *cfg = rkvdec->config;
 	enum vb2_buffer_state state;
-	bool need_reset;
+	bool need_reset = 0;
 	u32 status;
 
-	status = readl(rkvdec->regs + RKVDEC2_REG_STA_INT);
+	writel(0x00030000, rkvdec->link + 0x48);
+	writel(0x03ff0000, rkvdec->link + 0x4c);
+	state = VB2_BUF_STATE_DONE;
+
+#ifdef VDPU381
+	status = readl(rkvdec->regs + cfg->irq_reg);
 	//dev_warn(rkvdec->dev, "status = %08x\n", status);
-	state = (status & STA_INT_DEC_RDY_STA) ?
+	state = (status & cfg->irq_ready_bit) ?
 		VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
 
 	need_reset = state != VB2_BUF_STATE_DONE ||
-			      (status & STA_INT_SOFTRESET_RDY);
+			      (status & cfg->irq_reset_bit);
 
 	/*for (int i = 0x0380; i <= 0x03b4; i+=4) {
 		status = readl(rkvdec->regs + i);
 		dev_warn(rkvdec->dev, "reg[%u] = %08x\n", i/4, status);
 	}*/
-	status = readl(rkvdec->regs + 0x200);
+	//status = readl(rkvdec->regs + 0x200);
 	//dev_warn(rkvdec->dev, "reg[%u] = %08x\n", 0x200/4, status);
 
 	/* Clear interrupt status */
-	writel(0, rkvdec->regs + RKVDEC2_REG_STA_INT);
+	writel(0, rkvdec->regs + cfg->irq_reg);
+#endif
 
 	if (need_reset)
 		rkvdec2_iommu_restore(rkvdec);
@@ -1318,17 +1384,39 @@ static void rkvdec2_watchdog_func(struct work_struct *work)
 	struct rkvdec2_dev *rkvdec = container_of(to_delayed_work(work), struct rkvdec2_dev,
 			      watchdog_work);
 	struct rkvdec2_ctx *ctx = v4l2_m2m_get_curr_priv(rkvdec->m2m_dev);
+	struct rkvdec_config *cfg = rkvdec->config;
 
 	if (ctx) {
 		dev_err(rkvdec->dev, "Frame processing timed out!\n");
-		writel(RKVDEC2_REG_DEC_IRQ_DISABLE, rkvdec->regs + RKVDEC2_REG_IMPORTANT_EN);
-		writel(0, rkvdec->regs + RKVDEC2_REG_DEC_E);
+		writel(cfg->irq_disable_bit, rkvdec->regs + cfg->irq_cfg_reg);
+		//writel(0, rkvdec->regs + RKVDEC2_REG_DEC_E);
 		rkvdec2_job_finish(ctx, VB2_BUF_STATE_ERROR);
 	}
 }
 
+const struct rkvdec_config config_vdpu381 = {
+	.irq_reg = VDPU381_REG_STA_INT,
+	.irq_cfg_reg = VDPU381_REG_IMPORTANT_EN,
+	.irq_disable_bit = VDPU381_DEC_IRQ_DISABLE,
+	.irq_ready_bit = VDPU381_STA_INT_DEC_RDY_STA,
+	.irq_reset_bit = VDPU381_STA_INT_SOFTRESET_RDY,
+	.coded_fmts = (struct rkvdec2_coded_fmt_desc*)rkvdec2_vdpu381_coded_fmts,
+	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu381_coded_fmts),
+};
+
+const struct rkvdec_config config_vdpu383 = {
+	.irq_reg = VDPU383_REG_STA_INT,
+	.irq_cfg_reg = VDPU383_REG_IMPORTANT_EN,
+	.irq_disable_bit = VDPU383_DEC_IRQ_DISABLE,
+	.irq_ready_bit = VDPU383_STA_INT_DEC_RDY_STA,
+	.irq_reset_bit = VDPU383_STA_INT_SOFTRESET_RDY,
+	.coded_fmts = (struct rkvdec2_coded_fmt_desc*)rkvdec2_vdpu383_coded_fmts,
+	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu383_coded_fmts),
+};
+
 static const struct of_device_id of_rkvdec2_match[] = {
-	{ .compatible = "rockchip,rk3588-vdec" },
+	{ .compatible = "rockchip,rk3588-vdec", .data = &config_vdpu381/*rkvdec2_vdpu381_coded_fmts*/ },
+	{ .compatible = "rockchip,rk3576-vdec", .data = &config_vdpu383/*rkvdec2_vdpu383_coded_fmts*/ },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, of_rkvdec2_match);
@@ -1379,6 +1467,10 @@ static int rkvdec2_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, rkvdec);
 	rkvdec->dev = &pdev->dev;
 
+	rkvdec->config = 
+		(struct rkvdec_config *)of_device_get_match_data(rkvdec->dev);
+	rkvdec->coded_fmts = rkvdec->config->coded_fmts; 
+
 	ret = rkvdec2_disable_multicore(rkvdec);
 	if (ret)
 		return ret;
@@ -1394,6 +1486,10 @@ static int rkvdec2_probe(struct platform_device *pdev)
 	rkvdec->axi_clk = devm_clk_get(&pdev->dev, "axi");
 
 	rkvdec->regs = devm_platform_ioremap_resource_byname(pdev, "function");
+	if (IS_ERR(rkvdec->regs))
+		return PTR_ERR(rkvdec->regs);
+
+	rkvdec->link = devm_platform_ioremap_resource_byname(pdev, "link");
 	if (IS_ERR(rkvdec->regs))
 		return PTR_ERR(rkvdec->regs);
 
@@ -1439,6 +1535,9 @@ static int rkvdec2_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_disable_runtime_pm;
 
+	rk3576_workaround_init(rkvdec);
+	rk3576_workaround_run(rkvdec);
+	rk3576_workaround_exit(rkvdec);
 	return 0;
 
 err_disable_runtime_pm:
@@ -1473,8 +1572,14 @@ static int rkvdec2_runtime_resume(struct device *dev)
 {
 	struct rkvdec2_dev *rkvdec = dev_get_drvdata(dev);
 
-	return clk_bulk_prepare_enable(rkvdec->clk_count,
-				       rkvdec->clocks);
+	int ret = clk_bulk_prepare_enable(rkvdec->clk_count,
+					  rkvdec->clocks);
+	
+	rk3576_workaround_init(rkvdec);
+	rk3576_workaround_run(rkvdec);
+	rk3576_workaround_exit(rkvdec);
+
+	return ret;
 }
 
 static int rkvdec2_runtime_suspend(struct device *dev)
