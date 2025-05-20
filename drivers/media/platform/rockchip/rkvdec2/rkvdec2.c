@@ -257,6 +257,10 @@ static const struct rkvdec2_ctrl_desc rkvdec2_hevc_ctrl_descs[] = {
 		.cfg.min = V4L2_MPEG_VIDEO_HEVC_LEVEL_1,
 		.cfg.max = V4L2_MPEG_VIDEO_HEVC_LEVEL_6_1,
 	},
+	{
+		.cfg.id = V4L2_CID_STATELESS_HEVC_SPS_RPS_EXTENDED,
+		.cfg.dims = { 65 },
+	},
 };
 
 static const struct rkvdec2_ctrls rkvdec2_h264_ctrls = {

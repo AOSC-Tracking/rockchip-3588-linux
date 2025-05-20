@@ -182,6 +182,7 @@ struct rkvdec2_hevc_run {
 	const struct v4l2_ctrl_hevc_sps 		*sps;
 	const struct v4l2_ctrl_hevc_pps 		*pps;
 	const struct v4l2_ctrl_hevc_scaling_matrix 	*scaling_matrix;
+	const struct v4l2_ctrl_hevc_sps_rps_extended 	*sps_rps_extended;
 	int						num_slices;
 };
 
@@ -528,6 +529,48 @@ static void set_ref_valid(struct rkvdec2_regs_hevc *regs, int id, u32 valid)
 	case 14:
 		regs->hevc_param.reg099.hevc_ref_valid_14 = valid;
 		break;
+	}
+}
+
+static void assemble_hw_rps(struct rkvdec2_ctx *ctx,
+			    struct rkvdec2_hevc_run *run)
+{
+	struct rkvdec2_hevc_ctx *hevc_ctx = ctx->priv;
+	struct rkvdec2_hevc_priv_tbl *priv_tbl = hevc_ctx->priv_tbl.cpu;
+	struct rkvdec2_rps *rps = &priv_tbl->rps;
+	const struct v4l2_ctrl_hevc_sps *sps = run->sps;
+
+	memset(rps, 0, sizeof(*rps));
+
+	if (!run->sps_rps_extended)
+		return;
+
+	for (int i = 0; i < sps->num_long_term_ref_pics_sps; i++) {
+		rps->refs[i].lt_ref_pic_poc_lsb =
+			run->sps_rps_extended[i].lt_ref_pic_poc_lsb_sps;
+		rps->refs[i].used_by_curr_pic_lt_flag =
+			run->sps_rps_extended[i].used_by_curr_pic_lt_sps_flag;
+	}
+
+	for (int i = 0; i < sps->num_short_term_ref_pic_sets; i++) {
+		int poc = 0;
+		int j = 0;
+		const struct v4l2_ctrl_hevc_st_ref_pic_set *set =
+			&run->sps_rps_extended[i].st_ref_pic_set;
+
+		rps->short_term_ref_sets[i].num_negative = set->num_negative_pics;
+		rps->short_term_ref_sets[i].num_positive = set->num_positive_pics;
+
+		for (; j < set->num_negative_pics; j++) {
+			set_ref_poc(&rps->short_term_ref_sets[i], j,
+				    set->delta_poc_s0[j], set->used_by_curr_pic_s0[j]);
+		}
+		poc = j;
+
+		for (j = 0; j < set->num_positive_pics; j++) {
+			set_ref_poc(&rps->short_term_ref_sets[i], poc + j,
+				    set->delta_poc_s1[j], set->used_by_curr_pic_s1[j]);
+		}
 	}
 }
 
@@ -928,6 +971,8 @@ static void rkvdec2_hevc_run_preamble(struct rkvdec2_ctx *ctx,
 	run->scaling_matrix = ctrl ? ctrl->p_cur.p : NULL;
 	ctrl = v4l2_ctrl_find(&ctx->ctrl_hdl,
 			      V4L2_CID_STATELESS_HEVC_SPS_RPS_EXTENDED);
+	run->sps_rps_extended = ctrl ? ctrl->p_cur.p : NULL;
+
 
 	rkvdec2_run_preamble(ctx, &run->base);
 }
@@ -941,6 +986,7 @@ static int rkvdec2_hevc_run(struct rkvdec2_ctx *ctx)
 
 	assemble_hw_scaling_list(ctx, &run);
 	assemble_hw_pps(ctx, &run);
+	assemble_hw_rps(ctx, &run);
 
 	config_registers(ctx, &run);
 
