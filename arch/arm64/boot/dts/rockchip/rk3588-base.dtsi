@@ -3236,7 +3236,7 @@
 		clocks = <&cru PCLK_CSIPHY0>;
 		clock-names = "pclk";
 		#phy-cells = <0>;
-		resets = <&cru SRST_P_CSIPHY0>, <&cru SRST_CSIPHY0>;
+		resets = <&cru SRST_CSIPHY0>, <&cru SRST_P_CSIPHY0>;
 		rockchip,grf = <&csidphy0_grf>;
 		status = "disabled";
 	};
@@ -3247,7 +3247,7 @@
 		clocks = <&cru PCLK_CSIPHY1>;
 		clock-names = "pclk";
 		#phy-cells = <0>;
-		resets = <&cru SRST_P_CSIPHY1>, <&cru SRST_CSIPHY1>;
+		resets = <&cru SRST_CSIPHY1>, <&cru SRST_P_CSIPHY1>;
 		rockchip,grf = <&csidphy1_grf>;
 		status = "disabled";
 	};
