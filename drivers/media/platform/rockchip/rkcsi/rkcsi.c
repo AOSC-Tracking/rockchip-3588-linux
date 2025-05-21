@@ -637,15 +637,17 @@ static irqreturn_t rkcsi_isr(int irq, void *ctx)
 	struct device *dev = ctx;
 	struct rkcsi_device *csi_dev = dev_get_drvdata(dev);
 	irqreturn_t ret = IRQ_NONE;
-	u32 val;
+#if 1
+	u32 state, err1, err2;
 
-	val = rkcsi_read(csi_dev, CSI2HOST_PHY_STATE);
-	dev_info(dev, "%s got CSI2HOST_PHY_STATE = 0x%x", __func__, val);
-	val = rkcsi_read(csi_dev, CSI2HOST_ERR1);
-	dev_info(dev, "%s got CSI2HOST_ERR1 = 0x%x", __func__, val);
-	val = rkcsi_read(csi_dev, CSI2HOST_ERR2);
-	dev_info(dev, "%s got CSI2HOST_ERR2 = 0x%x", __func__, val);
+	state = rkcsi_read(csi_dev, CSI2HOST_PHY_STATE);
+	err1 = rkcsi_read(csi_dev, CSI2HOST_ERR1);
+	err2 = rkcsi_read(csi_dev, CSI2HOST_ERR2);
 
+	dev_info(dev, "%s got CSI2HOST_PHY_STATE = 0x%x", __func__, state);
+	dev_info(dev, "%s got CSI2HOST_ERR1 = 0x%x", __func__, err1);
+	dev_info(dev, "%s got CSI2HOST_ERR2 = 0x%x", __func__, err2);
+#endif
 	ret = IRQ_HANDLED;
 
 	return ret;
