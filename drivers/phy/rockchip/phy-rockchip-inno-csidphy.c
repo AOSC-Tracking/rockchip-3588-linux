@@ -238,7 +238,7 @@ static int rockchip_inno_csidphy_power_on(struct phy *phy)
 {
 	struct rockchip_inno_csidphy *priv = phy_get_drvdata(phy);
 	const struct dphy_drv_data *drv_data = priv->drv_data;
-	u64 data_rate_mbps = HZ_TO_MHZ(priv->config.hs_clk_rate);
+	u64 data_rate_mbps = HZ_TO_MHZ(priv->config.hs_clk_rate * 2);
 	u32 val;
 	int ret, i;
 

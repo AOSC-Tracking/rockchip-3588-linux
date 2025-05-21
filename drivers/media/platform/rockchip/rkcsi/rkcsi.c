@@ -236,7 +236,7 @@ static int rkcsi_start(struct rkcsi_device *csi_dev)
 	if (bus_type == V4L2_MBUS_CSI2_DPHY) {
 		struct phy_configure_opts_mipi_dphy *cfg = &opts.mipi_dphy;
 
-		phy_mipi_dphy_get_default_config_for_hsclk(link_freq * 2, lanes,
+		phy_mipi_dphy_get_default_config_for_hsclk(link_freq, lanes,
 							   cfg);
 		phy_set_mode(csi_dev->phy, PHY_MODE_MIPI_DPHY);
 		phy_configure(csi_dev->phy, &opts);
