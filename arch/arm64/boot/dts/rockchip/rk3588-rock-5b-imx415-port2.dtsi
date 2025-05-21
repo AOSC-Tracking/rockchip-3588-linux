@@ -121,7 +121,7 @@
 		};
 	};
 };
-
+/*
 &rkcif_mipi_lvds4_sditf {
 	status = "okay";
 
@@ -131,11 +131,11 @@
 		};
 	};
 };
-
+*/
 &rkcif_mmu {
 	status = "okay";
 };
-
+/*
 &rkisp1 {
 	status = "okay";
 };
@@ -157,7 +157,7 @@
 		};
 	};
 };
-
+*/
 &vp1 {
 	vsync-notify-gpios = <&gpio3 RK_PC0 GPIO_ACTIVE_HIGH>; /* pin 15 on pin header */
 };
