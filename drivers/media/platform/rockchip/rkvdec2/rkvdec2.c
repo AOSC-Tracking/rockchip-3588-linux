@@ -358,7 +358,7 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu383_coded_fmts[] = {
 		.decoded_fmts = rkvdec2_h264_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
 	},
-/*	{
+	{
 		.fourcc = V4L2_PIX_FMT_HEVC_SLICE,
 		.frmsize = {
 			.min_width = 16,
@@ -369,11 +369,11 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu383_coded_fmts[] = {
 			.step_height = 16,
 		},
 		.ctrls = &rkvdec2_hevc_ctrls,
-		.ops = &rkvdec2_hevc_fmt_ops,
+		.ops = &rkvdec2_vdpu383_hevc_fmt_ops,
 		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_hevc_decoded_fmts),
 		.decoded_fmts = rkvdec2_hevc_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
-	},*/
+	},
 };
 
 static const struct rkvdec2_coded_fmt_desc *rkvdec2_find_coded_fmt_desc(struct rkvdec2_ctx *ctx,
@@ -785,7 +785,7 @@ static struct rcb_size_info rcb_sizes[] = {
         {3,     PIC_WIDTH},     // streamd_tile
         {6,     PIC_WIDTH},     // inter
         {6,     PIC_WIDTH},     // inter_tile
-        {5,     PIC_WIDTH},     // intra
+        {8,     PIC_WIDTH},     // intra
         {5,     PIC_WIDTH},     // intra_tile
         {60,    PIC_WIDTH},     // filterd
         {60,    PIC_WIDTH},     // filterd_protect
@@ -1346,9 +1346,13 @@ static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
 	bool need_reset = 0;
 	u32 status;
 
-	writel(0x00030000, rkvdec->link + 0x48);
+	writel(0x00030000, rkvdec->link + 0x48); //FIXME: This is a register with mask in the upper 16 bits -> Use macros from Nicolas F.
+	status = readl(rkvdec->link + 0x4c);
 	writel(0x03ff0000, rkvdec->link + 0x4c);
-	state = VB2_BUF_STATE_DONE;
+	
+	state = (status & cfg->irq_ready_bit) ? VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
+	need_reset = state != VB2_BUF_STATE_DONE ||
+			      (status & cfg->irq_reset_bit);
 
 #ifdef VDPU381
 	status = readl(rkvdec->regs + cfg->irq_reg);

@@ -185,7 +185,7 @@ struct rkvdec2_h264_run {
 struct rkvdec2_h264_ctx {
 	struct rkvdec2_aux_buf priv_tbl;
 	struct rkvdec2_h264_reflists reflists;
-	struct vdpu383_regs_h264 regs;
+	struct vdpu383_regs_h26x regs;
 };
 
 /*
@@ -577,13 +577,13 @@ static void rkvdec2_write_regs(struct rkvdec2_ctx *ctx)
 			    sizeof(h264_ctx->regs.common_addr));
 	dump_regs(ctx, (u32*)&h264_ctx->regs.common_addr, sizeof(h264_ctx->regs.common_addr)/4, VDPU383_OFFSET_COMMON_ADDR_REGS);
 	rkvdec2_memcpy_toio(rkvdec->regs + VDPU383_OFFSET_CODEC_PARAMS_REGS,
-			    &h264_ctx->regs.h264_param,
-			    sizeof(h264_ctx->regs.h264_param));
-	dump_regs(ctx, (u32*)&h264_ctx->regs.h264_param, sizeof(h264_ctx->regs.h264_param)/4, VDPU383_OFFSET_CODEC_PARAMS_REGS);
+			    &h264_ctx->regs.h26x_params,
+			    sizeof(h264_ctx->regs.h26x_params));
+	dump_regs(ctx, (u32*)&h264_ctx->regs.h26x_params, sizeof(h264_ctx->regs.h26x_params)/4, VDPU383_OFFSET_CODEC_PARAMS_REGS);
 	rkvdec2_memcpy_toio(rkvdec->regs + VDPU383_OFFSET_CODEC_ADDR_REGS,
-			    &h264_ctx->regs.h264_addr,
-			    sizeof(h264_ctx->regs.h264_addr));
-	dump_regs(ctx, (u32*)&h264_ctx->regs.h264_addr, sizeof(h264_ctx->regs.h264_addr)/4, VDPU383_OFFSET_CODEC_ADDR_REGS);
+			    &h264_ctx->regs.h26x_addr,
+			    sizeof(h264_ctx->regs.h26x_addr));
+	dump_regs(ctx, (u32*)&h264_ctx->regs.h26x_addr, sizeof(h264_ctx->regs.h26x_addr)/4, VDPU383_OFFSET_CODEC_ADDR_REGS);
 //	rkvdec2_memcpy_toio(rkvdec->regs + VDPU383_OFFSET_POC_HIGHBIT_REGS,
 //			    &h264_ctx->regs.h264_highpoc,
 //			    sizeof(h264_ctx->regs.h264_highpoc));
@@ -598,7 +598,7 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	const struct v4l2_pix_format_mplane *dst_fmt;
 	struct vb2_v4l2_buffer *src_buf = run->base.bufs.src;
 	struct vb2_v4l2_buffer *dst_buf = run->base.bufs.dst;
-	struct vdpu383_regs_h264 *regs = &h264_ctx->regs;
+	struct vdpu383_regs_h26x *regs = &h264_ctx->regs;
 	const struct v4l2_format *f;
 	dma_addr_t rlc_addr;
 	dma_addr_t dst_addr;
@@ -615,7 +615,7 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	regs->common.reg8_dec_mode = RKVDEC2_MODE_H264;
 
 	/* Set input stream length */
-	regs->h264_param.reg66_stream_len = vb2_get_plane_payload(&src_buf->vb2_buf, 0);
+	regs->h26x_params.reg66_stream_len = vb2_get_plane_payload(&src_buf->vb2_buf, 0);
 
 	/* Set strides */
 	f = &ctx->decoded_fmt;
@@ -626,9 +626,9 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 
 	pixels = dst_fmt->height * dst_fmt->width;
 
-	regs->h264_param.reg68_hor_virstride = hor_virstride / 16;
-	regs->h264_param.reg69_raster_uv_hor_virstride = hor_virstride / 16;
-	regs->h264_param.reg70_y_virstride = y_virstride / 16;
+	regs->h26x_params.reg68_hor_virstride = hor_virstride / 16;
+	regs->h26x_params.reg69_raster_uv_hor_virstride = hor_virstride / 16;
+	regs->h26x_params.reg70_y_virstride = y_virstride / 16;
 
 	/* Activate block gating */
 	regs->common.reg10.strmd_auto_gating_e      = 1;
@@ -669,11 +669,11 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 		buf_dma = vb2_dma_contig_plane_dma_addr(vb_buf, 0);
 
 		/* Set reference addresses */
-		regs->h264_addr.reg170_185_ref_base[i] = buf_dma;
-		regs->h264_addr.reg195_210_payload_st_ref_base[i] = buf_dma;
+		regs->h26x_addr.reg170_185_ref_base[i] = buf_dma;
+		regs->h26x_addr.reg195_210_payload_st_ref_base[i] = buf_dma;
 
 		/* Set COLMV addresses */
-		regs->h264_addr.reg217_232_colmv_ref_base[i] = buf_dma + ctx->colmv_offset;
+		regs->h26x_addr.reg217_232_colmv_ref_base[i] = buf_dma + ctx->colmv_offset;
 	}
 
 	/* Set rlc base address (input stream) */
@@ -682,12 +682,12 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 
 	/* Set output base address */
 	dst_addr = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
-	regs->h264_addr.reg168_decout_base = dst_addr;
-	regs->h264_addr.reg169_error_ref_base = dst_addr;
-	regs->h264_addr.reg192_payload_st_cur_base = dst_addr; // FIXME: This is probably not correct.
+	regs->h26x_addr.reg168_decout_base = dst_addr;
+	regs->h26x_addr.reg169_error_ref_base = dst_addr;
+	regs->h26x_addr.reg192_payload_st_cur_base = dst_addr; // FIXME: This is probably not correct.
 
 	/* Set colmv address */
-	regs->h264_addr.reg216_colmv_cur_base = dst_addr + ctx->colmv_offset;
+	regs->h26x_addr.reg216_colmv_cur_base = dst_addr + ctx->colmv_offset;
 
 	/* Set RCB addresses */
 	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
@@ -698,7 +698,7 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	/* Set hw pps address */
 	offset = offsetof(struct rkvdec2_h264_priv_tbl, param_set);
 	regs->common_addr.reg131_gbl_base = priv_start_addr + offset;
-	regs->h264_param.reg67_global_len = sizeof(struct rkvdec2_sps_pps) / 16;
+	regs->h26x_params.reg67_global_len = sizeof(struct rkvdec2_sps_pps) / 16;
 
 	/* Set hw rps address */
 	offset = offsetof(struct rkvdec2_h264_priv_tbl, rps);

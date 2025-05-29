@@ -39,9 +39,9 @@
 #define VDPU383_REG_IMPORTANT_EN	0x024
 #define VDPU383_DEC_IRQ_DISABLE		0
 
-#define VDPU383_REG_STA_INT		0x03c
+#define VDPU383_REG_STA_INT		0x04c
 #define VDPU383_STA_INT_DEC_RDY_STA	BIT(0)
-#define VDPU383_STA_INT_SOFTRESET_RDY	BIT(10) // FIXME: Could be 11 or could be both, TBD
+#define VDPU383_STA_INT_SOFTRESET_RDY	(BIT(10) | BIT(11)) // FIXME: Could be 11 or could be both, TBD
 
 struct Vdpu383RegLlp {
     struct SWREG0_LINK_MODE {
@@ -363,7 +363,40 @@ struct vdpu383_regs_common_addr {
     } rcb_info[11];
 };
 
-struct vdpu383_regs_h264_params {
+struct vdpu383_regs_h26x_addr {
+	/* SWREG168_DECOUT_BASE */
+	u32 reg168_decout_base;
+
+	/* SWREG169_ERROR_REF_BASE */
+	u32 reg169_error_ref_base;
+
+	/* SWREG170_185_REF0_BASE */
+	u32 reg170_185_ref_base[16];
+
+	u32 reserve_reg186_191[6];
+
+	/* SWREG192_PAYLOAD_ST_CUR_BASE */
+	u32 reg192_payload_st_cur_base;
+
+	/* SWREG193_FBC_PAYLOAD_OFFSET */
+	u32 reg193_fbc_payload_offset;
+
+	/* SWREG194_PAYLOAD_ST_ERROR_REF_BASE */
+	u32 reg194_payload_st_error_ref_base;
+
+	/* SWREG195_PAYLOAD_ST_REF0_BASE */
+	u32 reg195_210_payload_st_ref_base[16];
+
+	u32 reserve_reg211_215[5];
+
+	/* SWREG216_COLMV_CUR_BASE */
+	u32 reg216_colmv_cur_base;
+
+	/* SWREG217_232_COLMV_REF0_BASE */
+	u32 reg217_232_colmv_ref_base[16];
+};
+
+struct vdpu383_regs_h26x_params {
     /* SWREG64_H26X_PARA */
     u32 reg64_start_decoder;
 
@@ -481,46 +514,11 @@ struct vdpu383_regs_h264_params {
     u32 reg106_ref7_virstride;
 };
 
-struct vdpu383_regs_h264_addr {
-    /* SWREG168_DECOUT_BASE */
-    u32 reg168_decout_base;
-
-    /* SWREG169_ERROR_REF_BASE */
-    u32 reg169_error_ref_base;
-
-    /* SWREG170_185_REF0_BASE */
-    u32 reg170_185_ref_base[16];
-
-    u32 reserve_reg186_191[6];
-
-    /* SWREG192_PAYLOAD_ST_CUR_BASE */
-    u32 reg192_payload_st_cur_base;
-
-    /* SWREG193_FBC_PAYLOAD_OFFSET */
-    u32 reg193_fbc_payload_offset;
-
-    /* SWREG194_PAYLOAD_ST_ERROR_REF_BASE */
-    u32 reg194_payload_st_error_ref_base;
-
-    /* SWREG195_PAYLOAD_ST_REF0_BASE */
-    u32 reg195_210_payload_st_ref_base[16];
-
-    u32 reserve_reg211_215[5];
-
-    /* SWREG216_COLMV_CUR_BASE */
-    u32 reg216_colmv_cur_base;
-
-    /* SWREG217_232_COLMV_REF0_BASE */
-    u32 reg217_232_colmv_ref_base[16];
-};
-//struct rkvdec2_regs_h264_highpoc_rk3576	{};
-
-struct vdpu383_regs_h264 {
+struct vdpu383_regs_h26x {
 	struct vdpu383_regs_common		common;		/* 8-30 */
-	struct vdpu383_regs_h264_params		h264_param;	/* 64-74, 80-106 */
+	struct vdpu383_regs_h26x_params		h26x_params;	/* 64-74, 80-106 */
 	struct vdpu383_regs_common_addr		common_addr;	/* 128-134, 140-161 */
-	struct vdpu383_regs_h264_addr		h264_addr;	/* 168-185, 192-210, 216-232 */
-//	struct vdpu383_regs_h264_highpoc_rk3576		h264_highpoc;
+	struct vdpu383_regs_h26x_addr		h26x_addr;	/* 168-185, 192-210, 216-232 */
 } __packed;
 
 #endif /* __RKVDEC_VDPU838_REGS_H__ */
