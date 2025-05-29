@@ -6,6 +6,9 @@
 #ifndef __PHY_HDMI_H_
 #define __PHY_HDMI_H_
 
+#define PHY_SUBMODE_TMDS	0
+#define PHY_SUBMODE_FRL		1
+
 /**
  * struct phy_configure_opts_hdmi - HDMI configuration set
  * @tmds_char_rate: HDMI TMDS Character Rate in Hertz.
@@ -14,6 +17,7 @@
  * This structure is used to represent the configuration state of a HDMI phy.
  */
 struct phy_configure_opts_hdmi {
+	//TODO: rename to "rate" so that it applies to FRL as well
 	unsigned long long tmds_char_rate;
 	unsigned int bpc;
 };
