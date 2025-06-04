@@ -1214,42 +1214,23 @@ static void rkvdec2_iommu_restore(struct rkvdec2_dev *rkvdec)
 	}
 }
 
-static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
+static irqreturn_t vdpu381_irq_handler(struct rkvdec2_ctx *ctx)
 {
-	struct rkvdec2_dev *rkvdec = priv;
-	struct rkvdec2_ctx *ctx = v4l2_m2m_get_curr_priv(rkvdec->m2m_dev);
+	struct rkvdec2_dev *rkvdec = ctx->dev;
 	struct rkvdec_config *cfg = rkvdec->config;
 	enum vb2_buffer_state state;
 	bool need_reset = 0;
 	u32 status;
 
-	writel(0x00030000, rkvdec->link + 0x48); //FIXME: This is a register with mask in the upper 16 bits -> Use macros from Nicolas F.
-	status = readl(rkvdec->link + 0x4c);
-	writel(0x03ff0000, rkvdec->link + 0x4c);
-	
-	state = (status & cfg->irq_ready_bit) ? VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
-	need_reset = state != VB2_BUF_STATE_DONE ||
-			      (status & cfg->irq_reset_bit);
-
-#ifdef VDPU381
 	status = readl(rkvdec->regs + cfg->irq_reg);
-	//dev_warn(rkvdec->dev, "status = %08x\n", status);
 	state = (status & cfg->irq_ready_bit) ?
-		VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
+		 VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
 
 	need_reset = state != VB2_BUF_STATE_DONE ||
-			      (status & cfg->irq_reset_bit);
-
-	/*for (int i = 0x0380; i <= 0x03b4; i+=4) {
-		status = readl(rkvdec->regs + i);
-		dev_warn(rkvdec->dev, "reg[%u] = %08x\n", i/4, status);
-	}*/
-	//status = readl(rkvdec->regs + 0x200);
-	//dev_warn(rkvdec->dev, "reg[%u] = %08x\n", 0x200/4, status);
+		    (status & cfg->irq_reset_bit);
 
 	/* Clear interrupt status */
 	writel(0, rkvdec->regs + cfg->irq_reg);
-#endif
 
 	if (need_reset)
 		rkvdec2_iommu_restore(rkvdec);
@@ -1258,6 +1239,40 @@ static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
 		rkvdec2_job_finish(ctx, state);
 
 	return IRQ_HANDLED;
+}
+
+static irqreturn_t vdpu383_irq_handler(struct rkvdec2_ctx *ctx)
+{
+	struct rkvdec2_dev *rkvdec = ctx->dev;
+	struct rkvdec_config *cfg = rkvdec->config;
+	enum vb2_buffer_state state;
+	bool need_reset = 0;
+	u32 status;
+
+	writel(0x00030000, rkvdec->link + 0x48); //FIXME: This is a register with mask in the upper 16 bits -> Use macros from Nicolas F.
+	status = readl(rkvdec->link + 0x4c);
+	writel(0x03ff0000, rkvdec->link + 0x4c);
+
+	state = (status & cfg->irq_ready_bit) ? VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR;
+	need_reset = state != VB2_BUF_STATE_DONE ||
+			      (status & cfg->irq_reset_bit);
+
+	if (need_reset)
+		rkvdec2_iommu_restore(rkvdec);
+
+	if (cancel_delayed_work(&rkvdec->watchdog_work))
+		rkvdec2_job_finish(ctx, state);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rkvdec2_irq_handler(int irq, void *priv)
+{
+	struct rkvdec2_dev *rkvdec = priv;
+	struct rkvdec2_ctx *ctx = v4l2_m2m_get_curr_priv(rkvdec->m2m_dev);
+	struct rkvdec_config *cfg = rkvdec->config;
+
+	return cfg->irq_handler(ctx);
 }
 
 static void rkvdec2_watchdog_func(struct work_struct *work)
@@ -1284,6 +1299,7 @@ const struct rkvdec_config config_vdpu381 = {
 	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu381_coded_fmts),
 	.rcb_size_info = vdpu381_rcb_sizes,
 	.rcb_num = ARRAY_SIZE(vdpu381_rcb_sizes),
+	.irq_handler = vdpu381_irq_handler,
 };
 
 const struct rkvdec_config config_vdpu383 = {
@@ -1296,6 +1312,7 @@ const struct rkvdec_config config_vdpu383 = {
 	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu383_coded_fmts),
 	.rcb_size_info = vdpu383_rcb_sizes,
 	.rcb_num = ARRAY_SIZE(vdpu383_rcb_sizes),
+	.irq_handler = vdpu383_irq_handler,
 };
 
 static const struct of_device_id of_rkvdec2_match[] = {

@@ -115,6 +115,7 @@ struct rkvdec_config {
 	size_t coded_fmts_num;
 	struct rcb_size_info *rcb_size_info;
 	size_t rcb_num;
+	irqreturn_t (*irq_handler)(struct rkvdec2_ctx *ctx);
 };
 
 struct rkvdec2_dev {
