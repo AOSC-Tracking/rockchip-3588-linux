@@ -8,6 +8,7 @@
  * Based on rkvdec driver by Boris Brezillon <boris.brezillon@collabora.com>
  */
 
+#include "linux/array_size.h"
 #include <linux/clk.h>
 #include <linux/genalloc.h>
 #include <linux/interrupt.h>
@@ -27,6 +28,7 @@
 #include <media/videobuf2-vmalloc.h>
 
 #include "rkvdec2.h"
+#include "rkvdec2-rcb.h"
 #include "rkvdec2-regs.h"
 #include "rkvdec2-vdpu383-regs.h"
 #include "rkvdec2-rk3576.h"
@@ -756,16 +758,6 @@ static void rkvdec2_buf_request_complete(struct vb2_buffer *vb)
 	v4l2_ctrl_request_complete(vb->req_obj.req, &ctx->ctrl_hdl);
 }
 
-enum rcb_axis {
-	PIC_WIDTH = 0,
-	PIC_HEIGHT = 1
-};
-
-struct rcb_size_info {
-	u8 multiplier;
-	enum rcb_axis axis;
-};
-
 static struct rcb_size_info vdpu381_rcb_sizes[] = {
 	{6,	PIC_WIDTH},	// intrar
 	{1,	PIC_WIDTH},	// transdr (Is actually 0.4*pic_width)
@@ -779,139 +771,24 @@ static struct rcb_size_info vdpu381_rcb_sizes[] = {
 	{67,	PIC_HEIGHT},	// filtc col
 };
 
-//static struct rcb_size_info vdpu383_rcb_sizes[] = {
-static struct rcb_size_info rcb_sizes[] = {
-        {3,     PIC_WIDTH},     // streamd
-        {3,     PIC_WIDTH},     // streamd_tile
-        {6,     PIC_WIDTH},     // inter
-        {6,     PIC_WIDTH},     // inter_tile
-        {8,     PIC_WIDTH},     // intra
-        {5,     PIC_WIDTH},     // intra_tile
-        {60,    PIC_WIDTH},     // filterd
-        {60,    PIC_WIDTH},     // filterd_protect
-        {60,    PIC_WIDTH},     // filterd_tile_row
-        {90,    PIC_HEIGHT},    // filterd_tile_col
+static struct rcb_size_info vdpu383_rcb_sizes[] = {
+        {6,	PIC_WIDTH},     // streamd
+        {6,	PIC_WIDTH},     // streamd_tile
+        {12,	PIC_WIDTH},     // inter
+        {12,	PIC_WIDTH},     // inter_tile
+        {16,	PIC_WIDTH},     // intra
+        {10,	PIC_WIDTH},     // intra_tile
+        {120,	PIC_WIDTH},     // filterd
+        {120,	PIC_WIDTH},     // filterd_protect
+        {120,	PIC_WIDTH},     // filterd_tile_row
+        {180,	PIC_HEIGHT},    // filterd_tile_col
 //      {0,     PIC_HEIGHT},    // FILTERD_AV1_UP_TILE
 };
-
-#define RCB_SIZE(n, w, h) (rcb_sizes[(n)].multiplier * (rcb_sizes[(n)].axis ? (h) : (w)))
-
-static void rkvdec2_free_rcb(struct rkvdec2_ctx *ctx)
-{
-	struct rkvdec2_dev *rkvdec = ctx->dev;
-	u32 width, height;
-	unsigned long virt_addr;
-	int i;
-
-	width = ctx->decoded_fmt.fmt.pix_mp.width;
-	height = ctx->decoded_fmt.fmt.pix_mp.height;
-
-	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
-		size_t rcb_size = ctx->rcb_bufs[i].size;
-
-		if (!ctx->rcb_bufs[i].cpu)
-			continue;
-
-		switch (ctx->rcb_bufs[i].type) {
-		case RKVDEC2_ALLOC_SRAM:
-			virt_addr = (unsigned long)ctx->rcb_bufs[i].cpu;
-
-			iommu_unmap(rkvdec->iommu_domain, virt_addr, rcb_size);
-			gen_pool_free(ctx->dev->sram_pool, virt_addr, rcb_size);
-			break;
-		case RKVDEC2_ALLOC_DMA:
-			dma_free_coherent(ctx->dev->dev,
-					  rcb_size,
-					  ctx->rcb_bufs[i].cpu,
-					  ctx->rcb_bufs[i].dma);
-			break;
-		}
-	}
-}
-
-static int rkvdec2_allocate_rcb(struct rkvdec2_ctx *ctx)
-{
-	int ret, i;
-	u32 width, height;
-	struct rkvdec2_dev *rkvdec = ctx->dev;
-
-	memset(ctx->rcb_bufs, 0, sizeof(*ctx->rcb_bufs));
-
-	width = ctx->decoded_fmt.fmt.pix_mp.width;
-	height = ctx->decoded_fmt.fmt.pix_mp.height;
-
-	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
-		void *cpu = NULL;
-		dma_addr_t dma;
-		size_t rcb_size = RCB_SIZE(i, width, height);
-		enum rkvdec2_alloc_type alloc_type = RKVDEC2_ALLOC_SRAM;
-
-		/* Try allocating an SRAM buffer */
-		if (ctx->dev->sram_pool) {
-			if (rkvdec->iommu_domain)
-				rcb_size = ALIGN(rcb_size, 0x1000);
-
-			cpu = gen_pool_dma_zalloc_align(ctx->dev->sram_pool,
-						rcb_size,
-						&dma,
-						0x1000);
-		}
-
-		/* If an IOMMU is used, map the SRAM address through it */
-		if (cpu && rkvdec->iommu_domain) {
-			unsigned long virt_addr = (unsigned long)cpu;
-			phys_addr_t phys_addr = dma;
-
-			ret = iommu_map(rkvdec->iommu_domain, virt_addr, phys_addr,
-					rcb_size, IOMMU_READ | IOMMU_WRITE, 0);
-			if (ret) {
-				gen_pool_free(ctx->dev->sram_pool,
-				      (unsigned long)cpu,
-				      rcb_size);
-				cpu = NULL;
-				goto ram_fallback;
-			}
-
-			/*
-			 * The registers will be configured with the virtual
-			 * address so that it goes through the IOMMU
-			 */
-			dma = virt_addr;
-		}
-
-ram_fallback:
-		/* Fallback to RAM */
-		if (!cpu) {
-			rcb_size = RCB_SIZE(i, width, height);
-			cpu = dma_alloc_coherent(ctx->dev->dev,
-						 rcb_size,
-						 &dma,
-						 GFP_KERNEL);
-			alloc_type = RKVDEC2_ALLOC_DMA;
-		}
-
-		if (!cpu) {
-			ret = -ENOMEM;
-			goto err_alloc;
-		}
-
-		ctx->rcb_bufs[i].cpu = cpu;
-		ctx->rcb_bufs[i].dma = dma;
-		ctx->rcb_bufs[i].size = rcb_size;
-		ctx->rcb_bufs[i].type = alloc_type;
-	}
-
-	return 0;
-
-err_alloc:
-	rkvdec2_free_rcb(ctx);
-
-	return ret;
-}
 
 static int rkvdec2_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct rkvdec2_ctx *ctx = vb2_get_drv_priv(q);
+	struct rkvdec_config *cfg = ctx->dev->config;
 	const struct rkvdec2_coded_fmt_desc *desc;
 	int ret;
 
@@ -922,7 +799,7 @@ static int rkvdec2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (WARN_ON(!desc))
 		return -EINVAL;
 
-	ret = rkvdec2_allocate_rcb(ctx);
+	ret = rkvdec_allocate_rcb(ctx, cfg->rcb_size_info, cfg->rcb_num);
 	if (ret)
 		return ret;
 
@@ -935,7 +812,7 @@ static int rkvdec2_start_streaming(struct vb2_queue *q, unsigned int count)
 	return 0;
 
 err_ops_start:
-	rkvdec2_free_rcb(ctx);
+	rkvdec_free_rcb(ctx);
 
 	return ret;
 }
@@ -974,7 +851,7 @@ static void rkvdec2_stop_streaming(struct vb2_queue *q)
 		if (desc->ops->stop)
 			desc->ops->stop(ctx);
 
-		rkvdec2_free_rcb(ctx);
+		rkvdec_free_rcb(ctx);
 	}
 
 	rkvdec2_queue_cleanup(q, VB2_BUF_STATE_ERROR);
@@ -1393,7 +1270,6 @@ static void rkvdec2_watchdog_func(struct work_struct *work)
 	if (ctx) {
 		dev_err(rkvdec->dev, "Frame processing timed out!\n");
 		writel(cfg->irq_disable_bit, rkvdec->regs + cfg->irq_cfg_reg);
-		//writel(0, rkvdec->regs + RKVDEC2_REG_DEC_E);
 		rkvdec2_job_finish(ctx, VB2_BUF_STATE_ERROR);
 	}
 }
@@ -1406,6 +1282,8 @@ const struct rkvdec_config config_vdpu381 = {
 	.irq_reset_bit = VDPU381_STA_INT_SOFTRESET_RDY,
 	.coded_fmts = (struct rkvdec2_coded_fmt_desc*)rkvdec2_vdpu381_coded_fmts,
 	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu381_coded_fmts),
+	.rcb_size_info = vdpu381_rcb_sizes,
+	.rcb_num = ARRAY_SIZE(vdpu381_rcb_sizes),
 };
 
 const struct rkvdec_config config_vdpu383 = {
@@ -1416,11 +1294,13 @@ const struct rkvdec_config config_vdpu383 = {
 	.irq_reset_bit = VDPU383_STA_INT_SOFTRESET_RDY,
 	.coded_fmts = (struct rkvdec2_coded_fmt_desc*)rkvdec2_vdpu383_coded_fmts,
 	.coded_fmts_num = ARRAY_SIZE(rkvdec2_vdpu383_coded_fmts),
+	.rcb_size_info = vdpu383_rcb_sizes,
+	.rcb_num = ARRAY_SIZE(vdpu383_rcb_sizes),
 };
 
 static const struct of_device_id of_rkvdec2_match[] = {
-	{ .compatible = "rockchip,rk3588-vdec", .data = &config_vdpu381/*rkvdec2_vdpu381_coded_fmts*/ },
-	{ .compatible = "rockchip,rk3576-vdec", .data = &config_vdpu383/*rkvdec2_vdpu383_coded_fmts*/ },
+	{ .compatible = "rockchip,rk3588-vdec", .data = &config_vdpu381 },
+	{ .compatible = "rockchip,rk3576-vdec", .data = &config_vdpu383 },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, of_rkvdec2_match);

@@ -14,6 +14,7 @@
 #include <linux/iopoll.h>
 
 #include "rkvdec2.h"
+#include "rkvdec2-rcb.h"
 #include "rkvdec2-vdpu383-regs.h"
 
 #define RKVDEC_NUM_REFLIST		3
@@ -690,9 +691,9 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	regs->h26x_addr.reg216_colmv_cur_base = dst_addr + ctx->colmv_offset;
 
 	/* Set RCB addresses */
-	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
-		regs->common_addr.rcb_info[i].offset = ctx->rcb_bufs[i].dma;
-		regs->common_addr.rcb_info[i].size = ctx->rcb_bufs[i].size;
+	for (i = 0; i < rkvdec_rcb_buf_count(ctx); i++) {
+		regs->common_addr.rcb_info[i].offset = rkvdec_rcb_buf_dma_addr(ctx, i);
+		regs->common_addr.rcb_info[i].size = rkvdec_rcb_buf_size(ctx, i);
 	}
 
 	/* Set hw pps address */

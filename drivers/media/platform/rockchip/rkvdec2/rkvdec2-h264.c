@@ -13,6 +13,7 @@
 #include <media/v4l2-cabac/rkvdec-cabac.h>
 
 #include "rkvdec2.h"
+#include "rkvdec2-rcb.h"
 #include "rkvdec2-regs.h"
 
 #define RKVDEC_NUM_REFLIST		3
@@ -552,8 +553,8 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	regs->common_addr.colmv_cur_base = dst_addr + ctx->colmv_offset;
 
 	/* Set RCB addresses */
-	for (i = 0; i < RKVDEC2_RCB_COUNT; i++)
-		regs->common_addr.rcb_base[i] = ctx->rcb_bufs[i].dma;
+	for (i = 0; i < rkvdec_rcb_buf_count(ctx); i++)
+		regs->common_addr.rcb_base[i] = rkvdec_rcb_buf_dma_addr(ctx, i);
 
 	/* Set hw pps address */
 	offset = offsetof(struct rkvdec2_h264_priv_tbl, param_set);

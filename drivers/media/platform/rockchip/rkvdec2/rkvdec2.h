@@ -26,6 +26,7 @@
 #define RKVDEC2_RCB_COUNT	10
 
 struct rkvdec2_ctx;
+struct rkvdec_rcb_config;
 
 enum rkvdec2_alloc_type {
 	RKVDEC2_ALLOC_SRAM,
@@ -112,6 +113,8 @@ struct rkvdec_config {
 	u32 irq_reset_bit;
 	struct rkvdec2_coded_fmt_desc *coded_fmts;
 	size_t coded_fmts_num;
+	struct rcb_size_info *rcb_size_info;
+	size_t rcb_num;
 };
 
 struct rkvdec2_dev {
@@ -143,7 +146,7 @@ struct rkvdec2_ctx {
 	enum rkvdec2_image_fmt image_fmt;
 	struct v4l2_ctrl_handler ctrl_hdl;
 	struct rkvdec2_dev *dev;
-	struct rkvdec2_aux_buf rcb_bufs[RKVDEC2_RCB_COUNT];
+	struct rkvdec_rcb_config *rcb_config;
 
 	u32 colmv_offset;
 

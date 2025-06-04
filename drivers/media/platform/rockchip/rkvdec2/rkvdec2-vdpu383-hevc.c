@@ -11,6 +11,7 @@
 #include <media/v4l2-cabac/rkvdec-cabac.h>
 
 #include "rkvdec2.h"
+#include "rkvdec2-rcb.h"
 #include "rkvdec2-vdpu383-regs.h"
 
 struct rkvdec2_hevc_sps_pps {
@@ -983,15 +984,15 @@ static void config_registers(struct rkvdec2_ctx *ctx,
 	dst_addr = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
 	regs->h26x_addr.reg168_decout_base = dst_addr;
 	regs->h26x_addr.reg169_error_ref_base = dst_addr;
-	regs->h26x_addr.reg192_payload_st_cur_base = dst_addr; // FIXME: This is probably not correct.
+	regs->h26x_addr.reg192_payload_st_cur_base = dst_addr;
 
 	/* Set colmv address */
 	regs->h26x_addr.reg216_colmv_cur_base = dst_addr + ctx->colmv_offset;
 
 	/* Set RCB addresses */
-	for (i = 0; i < RKVDEC2_RCB_COUNT; i++) {
-		regs->common_addr.rcb_info[i].offset = ALIGN(ctx->rcb_bufs[i].dma, 128);
-		regs->common_addr.rcb_info[i].size = ctx->rcb_bufs[i].size;
+	for (i = 0; i < rkvdec_rcb_buf_count(ctx); i++) {
+		regs->common_addr.rcb_info[i].offset = rkvdec_rcb_buf_dma_addr(ctx, i);
+		regs->common_addr.rcb_info[i].size = rkvdec_rcb_buf_size(ctx, i);
 	}
 
 	if (sps->flags & V4L2_HEVC_SPS_FLAG_SCALING_LIST_ENABLED) {
