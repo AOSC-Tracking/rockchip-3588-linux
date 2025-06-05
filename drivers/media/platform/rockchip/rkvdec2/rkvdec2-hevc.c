@@ -1010,7 +1010,7 @@ static int rkvdec2_hevc_try_ctrl(struct rkvdec2_ctx *ctx, struct v4l2_ctrl *ctrl
 	return 0;
 }
 
-const struct rkvdec2_coded_fmt_ops rkvdec2_hevc_fmt_ops = {
+const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu381_hevc_fmt_ops = {
 	.adjust_fmt = rkvdec2_hevc_adjust_fmt,
 	.start = rkvdec2_hevc_start,
 	.stop = rkvdec2_hevc_stop,

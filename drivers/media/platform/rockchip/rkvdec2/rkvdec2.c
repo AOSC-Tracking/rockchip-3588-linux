@@ -319,7 +319,7 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu381_coded_fmts[] = {
 			.step_height = 16,
 		},
 		.ctrls = &rkvdec2_h264_ctrls,
-//		.ops = &rkvdec2_h264_fmt_ops, //TODO: Rename me
+		.ops = &rkvdec2_vdpu381_h264_fmt_ops,
 		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_h264_decoded_fmts),
 		.decoded_fmts = rkvdec2_h264_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,
@@ -335,7 +335,7 @@ static const struct rkvdec2_coded_fmt_desc rkvdec2_vdpu381_coded_fmts[] = {
 			.step_height = 16,
 		},
 		.ctrls = &rkvdec2_hevc_ctrls,
-		.ops = &rkvdec2_hevc_fmt_ops,
+		.ops = &rkvdec2_vdpu381_hevc_fmt_ops,
 		.num_decoded_fmts = ARRAY_SIZE(rkvdec2_hevc_decoded_fmts),
 		.decoded_fmts = rkvdec2_hevc_decoded_fmts,
 		.subsystem_flags = VB2_V4L2_FL_SUPPORTS_M2M_HOLD_CAPTURE_BUF,

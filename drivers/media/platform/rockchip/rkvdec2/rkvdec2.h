@@ -162,9 +162,9 @@ static inline struct rkvdec2_ctx *fh_to_rkvdec2_ctx(struct v4l2_fh *fh)
 void rkvdec2_run_preamble(struct rkvdec2_ctx *ctx, struct rkvdec2_run *run);
 void rkvdec2_run_postamble(struct rkvdec2_ctx *ctx, struct rkvdec2_run *run);
 
-extern const struct rkvdec2_coded_fmt_ops rkvdec2_h264_fmt_ops;
+extern const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu381_h264_fmt_ops;
 extern const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu383_h264_fmt_ops;
-extern const struct rkvdec2_coded_fmt_ops rkvdec2_hevc_fmt_ops;
+extern const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu381_hevc_fmt_ops;
 extern const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu383_hevc_fmt_ops;
 
 #endif /* RKVDEC_H_ */

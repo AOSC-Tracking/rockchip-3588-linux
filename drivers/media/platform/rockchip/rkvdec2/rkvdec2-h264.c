@@ -769,7 +769,7 @@ static int rkvdec2_h264_try_ctrl(struct rkvdec2_ctx *ctx, struct v4l2_ctrl *ctrl
 	return 0;
 }
 
-const struct rkvdec2_coded_fmt_ops rkvdec2_h264_fmt_ops = {
+const struct rkvdec2_coded_fmt_ops rkvdec2_vdpu381_h264_fmt_ops = {
 	.adjust_fmt = rkvdec2_h264_adjust_fmt,
 	.get_image_fmt = rkvdec2_h264_get_image_fmt,
 	.start = rkvdec2_h264_start,
