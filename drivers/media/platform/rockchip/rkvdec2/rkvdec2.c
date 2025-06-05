@@ -31,7 +31,6 @@
 #include "rkvdec2-rcb.h"
 #include "rkvdec2-regs.h"
 #include "rkvdec2-vdpu383-regs.h"
-#include "rkvdec2-rk3576.h"
 
 static inline bool rkvdec2_image_fmt_match(enum rkvdec2_image_fmt fmt1,
 					   enum rkvdec2_image_fmt fmt2)
@@ -1436,9 +1435,6 @@ static int rkvdec2_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_disable_runtime_pm;
 
-	rk3576_workaround_init(rkvdec);
-	rk3576_workaround_run(rkvdec);
-	rk3576_workaround_exit(rkvdec);
 	return 0;
 
 err_disable_runtime_pm:
@@ -1473,14 +1469,8 @@ static int rkvdec2_runtime_resume(struct device *dev)
 {
 	struct rkvdec2_dev *rkvdec = dev_get_drvdata(dev);
 
-	int ret = clk_bulk_prepare_enable(rkvdec->clk_count,
+	return clk_bulk_prepare_enable(rkvdec->clk_count,
 					  rkvdec->clocks);
-	
-	rk3576_workaround_init(rkvdec);
-	rk3576_workaround_run(rkvdec);
-	rk3576_workaround_exit(rkvdec);
-
-	return ret;
 }
 
 static int rkvdec2_runtime_suspend(struct device *dev)
