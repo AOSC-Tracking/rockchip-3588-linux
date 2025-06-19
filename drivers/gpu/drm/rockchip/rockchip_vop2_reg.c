@@ -1578,6 +1578,15 @@ static unsigned long rk3588_calc_cru_cfg(struct vop2_video_port *vp, int id,
 		 */
 		*if_pixclk_div = 2;
 		*if_dclk_div = 4;
+
+		if (dclk_rate > 600000000) {
+			dclk_rate = dclk_rate >> 1;
+			*if_pixclk_div = 1;
+			*if_dclk_div = 2;
+		}
+
+		*dclk_out_div = 1;
+
 	} else if (vop2_output_if_is_edp(id)) {
 		/*
 		 * edp_pixclk = edp_dclk > dclk_core
@@ -1678,6 +1687,8 @@ static unsigned long rk3588_set_intf_mux(struct vop2_video_port *vp, int id, u32
 	if (!clock)
 		return 0;
 
+	printk("**** out_div=%d core_div=%d\n", dclk_out_div, dclk_core_div);
+	printk("**** if_pix_div=%d if_dclk_div=%d\n", if_pixclk_div, if_dclk_div);
 	vp_clk_div = FIELD_PREP(RK3588_VP_CLK_CTRL__DCLK_CORE_DIV, dclk_core_div);
 	vp_clk_div |= FIELD_PREP(RK3588_VP_CLK_CTRL__DCLK_OUT_DIV, dclk_out_div);
 
