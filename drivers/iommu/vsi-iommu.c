@@ -636,6 +636,7 @@ static const struct iommu_ops vsi_iommu_ops = {
 	.probe_device = vsi_iommu_probe_device,
 	.release_device = vsi_iommu_release_device,
 	.device_group = generic_single_device_group,
+	.owner = THIS_MODULE,
 	.default_domain_ops = &(const struct iommu_domain_ops) {
 		.attach_dev		= vsi_iommu_attach_device,
 		.map_pages		= vsi_iommu_map,
