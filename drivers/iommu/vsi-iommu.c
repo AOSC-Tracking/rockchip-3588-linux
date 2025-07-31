@@ -655,6 +655,7 @@ static const struct of_device_id vsi_iommu_dt_ids[] = {
 	},
 	{ /* sentinel */ }
 };
+MODULE_DEVICE_TABLE(of, vsi_iommu_dt_ids);
 
 static int vsi_iommu_probe(struct platform_device *pdev)
 {
