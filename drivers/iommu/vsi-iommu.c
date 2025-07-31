@@ -650,9 +650,6 @@ static const struct of_device_id vsi_iommu_dt_ids[] = {
 	{
 		.compatible = "verisilicon,iommu-1.2",
 	},
-	{
-		.compatible = "rockchip,rk3588-av1-iommu",
-	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, vsi_iommu_dt_ids);
